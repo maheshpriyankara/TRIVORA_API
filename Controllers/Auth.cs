@@ -53,7 +53,7 @@ namespace TRIVORA_API.Controllers
                         {
                             userID = user.UserID,
                             userName = user.UserName,
-                            email = user.Email,
+                            accessType = user.AccessType,
                             inactivityTimeout = inactivityTimeout
                         }
                     });
@@ -109,7 +109,7 @@ namespace TRIVORA_API.Controllers
             }
         }
 
-        [HttpPost("validate-token")]
+        [HttpPost("ValidateToken")]
         public IActionResult ValidateToken([FromBody] TokenRequest request)
         {
             try
@@ -208,10 +208,10 @@ namespace TRIVORA_API.Controllers
         {
             using (var con = new SqlConnection(_connectionString))
             {
-                string query = @"SELECT UserID, UserName, Email FROM Users 
-                               WHERE (UserID = @UserID OR Email = @UserID OR NIC = @UserID) 
-                               AND (Password = @Password OR OTP = @Password)
-                               AND IsActive = 1";
+                string query = @"SELECT username, Nic, AccessType FROM Admin_Users 
+                               WHERE (username = @UserID OR EmailId = @UserID OR NIC = @UserID) 
+                               AND (Password = @Password)
+                               AND IsActive ='true'";
 
                 using (var cmd = new SqlCommand(query, con))
                 {
@@ -225,9 +225,9 @@ namespace TRIVORA_API.Controllers
                         {
                             return new User
                             {
-                                UserID = reader["UserID"].ToString(),
-                                UserName = reader["UserName"].ToString(),
-                                Email = reader["Email"]?.ToString()
+                                UserID = reader["username"].ToString(),
+                                UserName = reader["Nic"].ToString(),
+                                AccessType = reader["accesstype"]?.ToString()
                             };
                         }
                     }
@@ -245,7 +245,7 @@ namespace TRIVORA_API.Controllers
         {
             using (var con = new SqlConnection(_connectionString))
             {
-                string query = "SELECT 1 FROM Users WHERE UserID = @UserID OR Email = @UserID OR NIC = @UserID";
+                string query = "SELECT 1 FROM Admin_users WHERE id = @UserID OR Email = @UserID OR NIC = @UserID";
 
                 using (var cmd = new SqlCommand(query, con))
                 {
@@ -366,15 +366,15 @@ namespace TRIVORA_API.Controllers
                 // First check if InactivityTimeout column exists
                 string query = @"
                     SELECT 
-                        UserID, 
+                        id, 
                         UserName,
                         CASE 
-                            WHEN COL_LENGTH('Users', 'InactivityTimeout') IS NOT NULL 
+                            WHEN COL_LENGTH('admin_users', 'InactivityTimeout') IS NOT NULL 
                             THEN ISNULL(InactivityTimeout, 5) 
                             ELSE 5 
                         END as InactivityTimeout
-                    FROM Users 
-                    WHERE UserID = @UserID";
+                    FROM admin_users 
+                    WHERE id = @UserID";
 
                 using (var cmd = new SqlCommand(query, con))
                 {
@@ -387,7 +387,7 @@ namespace TRIVORA_API.Controllers
                         {
                             return new UserSettings
                             {
-                                UserID = reader["UserID"].ToString(),
+                                UserID = reader["Id"].ToString(),
                                 UserName = reader["UserName"].ToString(),
                                 InactivityTimeout = Convert.ToInt32(reader["InactivityTimeout"])
                             };
@@ -420,7 +420,7 @@ namespace TRIVORA_API.Controllers
     {
         public string UserID { get; set; }
         public string UserName { get; set; }
-        public string Email { get; set; }
+        public string AccessType { get; set; }
     }
 
     public class UserSettings
