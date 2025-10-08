@@ -67,7 +67,35 @@ namespace TRIVORA_API.Controllers
                 }
 
                 // Fetch user settings from database
-                var companySettings = GetCompanySettingsFromDB(companyID);
+                var companySettings = GetDepartmentsFromDB(companyID);
+                if (companySettings == null)
+                {
+                    return Ok(new { success = false, message = "Companies not found" });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    data = companySettings  // Make sure this property is named "data"
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, ex.Message);
+            }
+        }
+        [HttpGet("company-designations")]
+        public IActionResult GetCompanyDesignations([FromQuery] string companyID)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(companyID))
+                {
+                    return BadRequest("Token is required");
+                }
+
+                // Fetch user settings from database
+                var companySettings = GetDesignationsFromDB(companyID);
                 if (companySettings == null)
                 {
                     return Ok(new { success = false, message = "Companies not found" });
@@ -118,7 +146,7 @@ namespace TRIVORA_API.Controllers
             }
             return companyList;
         }
-        private List<CompanyDepartments> GetDepartmentsSettingsFromDB(string companyID)
+        private List<CompanyDepartments> GetDepartmentsFromDB(string companyID)
         {
             var departmentsList = new List<CompanyDepartments>();
 
@@ -126,10 +154,11 @@ namespace TRIVORA_API.Controllers
             {
                 string query = @"
             SELECT 
+                [Id],
                 [DepartmentName]
             FROM [trivora_hris].[dbo].[Company_Departments] 
            
-            WHERE [CompanyId] = @CompanyId";
+            WHERE [CompanyId] = @CompanyId order by DepartmentName";
 
                 using (var cmd = new SqlCommand(query, con))
                 {
@@ -142,6 +171,7 @@ namespace TRIVORA_API.Controllers
                         {
                             departmentsList.Add(new CompanyDepartments
                             {
+                                Id = (int)reader["Id"],
                                 DepartmentName = reader["DepartmentName"].ToString()
                             });
                         }
@@ -149,6 +179,40 @@ namespace TRIVORA_API.Controllers
                 }
             }
             return departmentsList;
+        }
+        private List<CompanyDesignations> GetDesignationsFromDB(string companyID)
+        {
+            var designationsList = new List<CompanyDesignations>();
+
+            using (var con = new SqlConnection(_connectionString))
+            {
+                string query = @"
+            SELECT 
+                [Id],
+                [Designation]
+            FROM [trivora_hris].[dbo].[Company_Designations] 
+           
+            WHERE [CompanyId] = @CompanyId order by Designation";
+
+                using (var cmd = new SqlCommand(query, con))
+                {
+                    cmd.Parameters.AddWithValue("@CompanyId", companyID);
+
+                    con.Open();
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            designationsList.Add(new CompanyDesignations
+                            {
+                                Id = (int)reader["Id"],
+                                Designation = reader["Designation"].ToString()
+                            });
+                        }
+                    }
+                }
+            }
+            return designationsList;
         }
         private bool ValidateTokenInDatabase(string token)
         {
@@ -191,7 +255,15 @@ namespace TRIVORA_API.Controllers
         }
         public class CompanyDepartments
         {
+            public int Id { get; set; }
             public string DepartmentName { get; set; }
         }
+        public class CompanyDesignations
+        {
+            public int Id { get; set; }
+            public string Designation { get; set; }
+        }
     }
+
+
 }
