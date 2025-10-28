@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using System.Data;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 
 namespace TRIVORA_API.Controllers
@@ -121,7 +122,10 @@ namespace TRIVORA_API.Controllers
                 string query = @"
             SELECT 
                 c.[Id] AS CompanyId,
-                c.[CompanyName]
+                c.[CompanyName],
+                c.[MinBasic],
+                c.[MinBudgetaryAllowanceOne],
+                c.[MinBudgetaryAllowanceTwo]
             FROM [trivora_hris].[dbo].[Company_Admins] ca
             INNER JOIN [trivora_hris].[dbo].[Company] c ON ca.[CompanyId] = c.[Id]
             WHERE ca.[AdminId] = @UserId";
@@ -138,7 +142,10 @@ namespace TRIVORA_API.Controllers
                             companyList.Add(new CompanySettings
                             {
                                 CompanyID = reader["CompanyId"].ToString(),
-                                CompanyName = reader["CompanyName"].ToString()
+                                CompanyName = reader["CompanyName"].ToString(),
+                                MinBasic = reader.GetDouble(2),
+                                MinBudgetaryAllowanceOne = reader.GetDouble(3),
+                                MinBudgetaryAllowanceTwo=reader.GetDouble(4)
                             });
                         }
                     }
@@ -252,6 +259,9 @@ namespace TRIVORA_API.Controllers
         {
             public string CompanyID { get; set; }
             public string CompanyName { get; set; }
+            public double MinBasic { get; set; }
+            public double MinBudgetaryAllowanceOne { get; set; }
+            public double MinBudgetaryAllowanceTwo { get; set; }
         }
         public class CompanyDepartments
         {

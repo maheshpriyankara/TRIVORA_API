@@ -44,11 +44,18 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("https://localhost:1485", "http://localhost:1485") // Added both HTTP and HTTPS
+        policy.WithOrigins("https://localhost:5246", "http://localhost:5246") // Added both HTTP and HTTPS
               .AllowAnyHeader()
               .AllowAnyMethod();
     });
 });
+// In Program.cs
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+        options.JsonSerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
+    });
 
 // This line helps avoid validation errors for non-nullable properties receiving null
 builder.Services.AddControllers(

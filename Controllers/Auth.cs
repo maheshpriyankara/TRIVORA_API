@@ -236,10 +236,6 @@ namespace TRIVORA_API.Controllers
             return null;
         }
 
-        // Include all your other helper methods exactly as they are:
-        // UserExists, GenerateToken, StoreToken, ValidateTokenInDatabase, 
-        // GetUserIDFromToken, InvalidateToken, GenerateOTP, StoreOTP, GetUserSettingsFromDB
-        // ... (copy all your existing helper methods exactly as they are)
 
         private bool UserExists(string userID)
         {
