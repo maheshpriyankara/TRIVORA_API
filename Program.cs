@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using TRIVORA_API.Data;
 using System.Reflection;
-
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container
@@ -60,7 +59,7 @@ builder.Services.AddControllers()
 // This line helps avoid validation errors for non-nullable properties receiving null
 builder.Services.AddControllers(
     options => options.SuppressImplicitRequiredAttributeForNonNullableReferenceTypes = true);
-
+// Add this to your Program.cs
 var app = builder.Build();
 
 // Configure the HTTP request pipeline
