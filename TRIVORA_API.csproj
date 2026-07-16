@@ -8,16 +8,48 @@
 		<NoWarn>$(NoWarn);1591</NoWarn>
 	</PropertyGroup>
 
-
-
 	<ItemGroup>
-		<PackageReference Include="Dapper" Version="2.1.66" />
-		<PackageReference Include="dotMorten.Microsoft.SqlServer.Types" Version="2.5.0" />
+		<!-- Database and ORM -->
+		<PackageReference Include="ClosedXML" Version="0.105.0" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.9" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.9" />
-		<PackageReference Include="Microsoft.NETCore" Version="5.0.0" />
-		<PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
-		<PackageReference Include="Z.EntityFramework.Extensions.EFCore" Version="9.104.0" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.9">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		
+		<!-- Dapper for additional data access -->
+		<PackageReference Include="Dapper" Version="2.1.66" />
+		
+		<!-- Excel Import Support -->
+		<PackageReference Include="EPPlus" Version="8.6.1" />
+		
+		<!-- Authentication -->
+		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.9" />
+		
+		<!-- API Documentation -->
+		<PackageReference Include="Swashbuckle.AspNetCore" Version="6.9.0" />
+		
+		<!-- SQL Server Spatial Types -->
+		<PackageReference Include="dotMorten.Microsoft.SqlServer.Types" Version="2.5.0" />
+		
+		<!-- JSON Serialization -->
+		<PackageReference Include="System.Text.Json" Version="9.0.9" />
+		
+		<!-- CORS Support -->
+		<PackageReference Include="Microsoft.AspNetCore.Cors" Version="2.3.0" />
+		
+		<!-- Additional Utilities -->
+		<PackageReference Include="System.ComponentModel.Annotations" Version="5.0.0" />
+	</ItemGroup>
 
+	<!-- Remove problematic packages -->
+	<ItemGroup>
+		<!-- Remove these packages that cause compatibility issues -->
+		<!--
+		<PackageReference Include="Microsoft.NETCore" Version="5.0.0" />
+		<PackageReference Include="Z.EntityFramework.Extensions.EFCore" Version="9.104.0" />
+		-->
 	</ItemGroup>
 
 </Project>
