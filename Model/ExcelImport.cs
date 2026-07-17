@@ -35,14 +35,16 @@ namespace TRIVORA_API.Models
     }
 
     public class ExcelPreviewData
-    {
-        public List<string> Columns { get; set; } = new List<string>();
-        public List<Dictionary<string, object>> Rows { get; set; } = new List<Dictionary<string, object>>();
-        public List<ExcelColumnMapping> ColumnMappings { get; set; } = new List<ExcelColumnMapping>();
-        public int TotalRows { get; set; }
-        public string FileName { get; set; } = string.Empty;
-        public string? UploadId { get; set; }
-    }
+{
+    public List<string> Columns { get; set; } = new List<string>();
+    public List<Dictionary<string, object>> Rows { get; set; } = new List<Dictionary<string, object>>();
+    public List<ExcelColumnMapping> ColumnMappings { get; set; } = new List<ExcelColumnMapping>();
+    public int TotalRows { get; set; }
+    public string FileName { get; set; } = string.Empty;
+    public string? UploadId { get; set; }
+    public bool IsRetry { get; set; } // Add this property
+    public string? OriginalUploadId { get; set; } // Add this property
+}
 
     public class ImportResult
     {
@@ -51,6 +53,7 @@ namespace TRIVORA_API.Models
         public int TotalProcessed { get; set; }
         public int Successful { get; set; }
         public int Failed { get; set; }
+        public int Skipped { get; set; } 
         public List<ImportError> Errors { get; set; } = new List<ImportError>();
         public List<Dictionary<string, object>> ProcessedData { get; set; } = new List<Dictionary<string, object>>();
     }

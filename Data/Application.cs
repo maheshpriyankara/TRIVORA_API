@@ -32,6 +32,7 @@ namespace TRIVORA_API.Data
 
         public DbSet<PaySheet> PaySheet { get; set; }
         
+         public DbSet<EmployeeAuditLog> EmployeeAuditLogs { get; set; }
         // Audit tables
         public DbSet<BasicSalaryHistory> BasicSalaryHistory { get; set; }
         public DbSet<EmployeeStatusHistory> EmployeeStatusHistory { get; set; }
