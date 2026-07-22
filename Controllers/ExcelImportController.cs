@@ -369,116 +369,136 @@ else
 }
 
         [HttpPost("confirm-mapping")]
-        public async Task<ActionResult<ApiResponse<ImportResult>>> ConfirmMapping([FromBody] ConfirmMappingRequest request)
+public async Task<ActionResult<ApiResponse<ImportResult>>> ConfirmMapping([FromBody] ConfirmMappingRequest request)
+{
+    try
+    {
+        _logger.LogInformation("=== CONFIRM MAPPING STARTED ===");
+        _logger.LogInformation($"UploadId: {request.UploadId}");
+        _logger.LogInformation($"CompanyId: {request.CompanyId}");
+        _logger.LogInformation($"OverrideDuplicates: {request.OverrideDuplicates}");
+        _logger.LogInformation($"Mappings: {JsonSerializer.Serialize(request.Mappings)}");
+
+        if (string.IsNullOrEmpty(request.UploadId))
+            return BadRequest(new ApiResponse<ImportResult>
+            {
+                Success = false,
+                Message = "Upload ID is required"
+            });
+
+        // ========== FIX: Get preview data from cache for column mappings ONLY ==========
+        ExcelPreviewData previewData;
+        lock (_importCache)
         {
-            try
-            {
-                _logger.LogInformation("=== CONFIRM MAPPING STARTED ===");
-                _logger.LogInformation($"UploadId: {request.UploadId}");
-                _logger.LogInformation($"CompanyId: {request.CompanyId}");
-                _logger.LogInformation($"OverrideDuplicates: {request.OverrideDuplicates}");
-                _logger.LogInformation($"Mappings: {JsonSerializer.Serialize(request.Mappings)}");
-
-                if (string.IsNullOrEmpty(request.UploadId))
-                    return BadRequest(new ApiResponse<ImportResult>
-                    {
-                        Success = false,
-                        Message = "Upload ID is required"
-                    });
-
-                ExcelPreviewData previewData;
-                lock (_importCache)
-                {
-                    if (!_importCache.TryGetValue(request.UploadId, out previewData))
-                        return BadRequest(new ApiResponse<ImportResult>
-                        {
-                            Success = false,
-                            Message = "Upload session not found. Please upload the file again."
-                        });
-                }
-
-                _logger.LogInformation($"Preview data found. Columns: {string.Join(", ", previewData.Columns)}");
-                _logger.LogInformation($"Rows count: {previewData.Rows.Count}");
-
-                // Apply mappings
-                var activeMappings = new List<ExcelColumnMapping>();
-                foreach (var mapping in previewData.ColumnMappings)
-                {
-                    _logger.LogInformation($"Processing mapping for Excel column: '{mapping.ExcelColumn}'");
-                    if (request.Mappings.TryGetValue(mapping.ExcelColumn, out var selectedField))
-                    {
-                        _logger.LogInformation($"  Found mapping: '{mapping.ExcelColumn}' -> '{selectedField}'");
-                        if (!string.IsNullOrEmpty(selectedField))
-                        {
-                            mapping.DatabaseField = selectedField;
-                            mapping.IsMapped = true;
-                            mapping.Confidence = 1.0;
-                            activeMappings.Add(mapping);
-                        }
-                        else
-                        {
-                            mapping.IsMapped = false;
-                            mapping.DatabaseField = null;
-                        }
-                    }
-                    else
-                    {
-                        _logger.LogWarning($"  No mapping found for '{mapping.ExcelColumn}'");
-                    }
-                }
-
-                // Log final mappings
-                _logger.LogInformation("=== FINAL MAPPINGS ===");
-                foreach (var mapping in activeMappings)
-                {
-                    _logger.LogInformation($"  {mapping.ExcelColumn} -> {mapping.DatabaseField}");
-                }
-
-                var importResult = await ImportExcelData(previewData, request.CompanyId ?? 0, request.OverrideDuplicates);
-
-                // Save import log
-                var importRecord = new ExcelImport
-                {
-                    FileName = previewData.FileName,
-                    UploadDate = DateTime.UtcNow,
-                    UploadedBy = User.Identity?.Name ?? "System",
-                    Status = importResult.Success ? "Completed" : "CompletedWithErrors",
-                    TotalRows = previewData.TotalRows,
-                    SuccessfulRows = importResult.Successful,
-                    FailedRows = importResult.Failed,
-                    MappingData = JsonSerializer.Serialize(activeMappings),
-                    RowData = JsonSerializer.Serialize(importResult.ProcessedData),
-                    CreatedDate = DateTime.UtcNow,
-                    ErrorMessage = importResult.Success ? null : string.Join("; ", importResult.Errors.Select(e => e.ErrorMessage))
-                };
-
-                _context.ExcelImports.Add(importRecord);
-                await _context.SaveChangesAsync();
-
-                lock (_importCache)
-                {
-                    _importCache.Remove(request.UploadId);
-                }
-
-                return Ok(new ApiResponse<ImportResult>
-                {
-                    Success = importResult.Success,
-                    Message = importResult.Success
-                        ? $"Successfully imported {importResult.Successful} employees"
-                        : $"Import completed with {importResult.Failed} errors",
-                    Data = importResult
-                });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error confirming mapping and importing data");
-                return StatusCode(500, new ApiResponse<ImportResult>
+            if (!_importCache.TryGetValue(request.UploadId, out previewData))
+                return BadRequest(new ApiResponse<ImportResult>
                 {
                     Success = false,
-                    Message = $"Error importing data: {ex.Message}"
+                    Message = "Upload session not found. Please upload the file again."
                 });
+        }
+
+        _logger.LogInformation($"Preview data found. Columns: {string.Join(", ", previewData.Columns)}");
+
+        // ========== KEY FIX: Use the rows from the request, NOT from cache ==========
+        // The request contains the edited rows - use those!
+        var rowsToImport = request.Rows;
+        
+        if (rowsToImport == null || rowsToImport.Count == 0)
+        {
+            _logger.LogWarning("No rows in request, falling back to cached rows");
+            rowsToImport = previewData.Rows;
+        }
+        else
+        {
+            _logger.LogInformation($"Using {rowsToImport.Count} rows from request (edited data)");
+        }
+
+        // Apply mappings
+        var activeMappings = new List<ExcelColumnMapping>();
+        foreach (var mapping in previewData.ColumnMappings)
+        {
+            _logger.LogInformation($"Processing mapping for Excel column: '{mapping.ExcelColumn}'");
+            if (request.Mappings.TryGetValue(mapping.ExcelColumn, out var selectedField))
+            {
+                _logger.LogInformation($"  Found mapping: '{mapping.ExcelColumn}' -> '{selectedField}'");
+                if (!string.IsNullOrEmpty(selectedField))
+                {
+                    mapping.DatabaseField = selectedField;
+                    mapping.IsMapped = true;
+                    mapping.Confidence = 1.0;
+                    activeMappings.Add(mapping);
+                }
+                else
+                {
+                    mapping.IsMapped = false;
+                    mapping.DatabaseField = null;
+                }
+            }
+            else
+            {
+                _logger.LogWarning($"  No mapping found for '{mapping.ExcelColumn}'");
             }
         }
+
+        // Log final mappings
+        _logger.LogInformation("=== FINAL MAPPINGS ===");
+        foreach (var mapping in activeMappings)
+        {
+            _logger.LogInformation($"  {mapping.ExcelColumn} -> {mapping.DatabaseField}");
+        }
+
+        // ========== IMPORT USING THE ROWS FROM THE REQUEST ==========
+        var importResult = await ImportExcelData(
+            rowsToImport,           // Use rows from request
+            previewData.Columns,    // Use columns from cache
+            activeMappings,         // Use mappings from cache/request
+            request.CompanyId ?? 0, 
+            request.OverrideDuplicates);
+
+        // Save import log
+        var importRecord = new ExcelImport
+        {
+            FileName = previewData.FileName,
+            UploadDate = DateTime.UtcNow,
+            UploadedBy = User.Identity?.Name ?? "System",
+            Status = importResult.Success ? "Completed" : "CompletedWithErrors",
+            TotalRows = previewData.TotalRows,
+            SuccessfulRows = importResult.Successful,
+            FailedRows = importResult.Failed,
+            MappingData = JsonSerializer.Serialize(activeMappings),
+            RowData = JsonSerializer.Serialize(importResult.ProcessedData),
+            CreatedDate = DateTime.UtcNow,
+            ErrorMessage = importResult.Success ? null : string.Join("; ", importResult.Errors.Select(e => e.ErrorMessage))
+        };
+
+        _context.ExcelImports.Add(importRecord);
+        await _context.SaveChangesAsync();
+
+        lock (_importCache)
+        {
+            _importCache.Remove(request.UploadId);
+        }
+
+        return Ok(new ApiResponse<ImportResult>
+        {
+            Success = importResult.Success,
+            Message = importResult.Success
+                ? $"Successfully imported {importResult.Successful} employees"
+                : $"Import completed with {importResult.Failed} errors",
+            Data = importResult
+        });
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error confirming mapping and importing data");
+        return StatusCode(500, new ApiResponse<ImportResult>
+        {
+            Success = false,
+            Message = $"Error importing data: {ex.Message}"
+        });
+    }
+}
 
         [HttpGet("history")]
         public async Task<ActionResult<ApiResponse<List<ExcelImport>>>> GetImportHistory()
@@ -595,28 +615,32 @@ else
 
         #region Private Methods
 
-      private async Task<ImportResult> ImportExcelData(ExcelPreviewData previewData, int providedCompanyId, bool overrideDuplicates)
+      private async Task<ImportResult> ImportExcelData(
+    List<Dictionary<string, object>> rows,
+    List<string> columns,
+    List<ExcelColumnMapping> activeMappings,
+    int providedCompanyId,
+    bool overrideDuplicates)
 {
     var result = new ImportResult
     {
         Success = true,
-        TotalProcessed = previewData.TotalRows,
+        TotalProcessed = rows.Count,
         Errors = new List<ImportError>(),
         ProcessedData = new List<Dictionary<string, object>>(),
-        Skipped = 0
+        Skipped = 0,
+        Successful = 0,
+        Failed = 0
     };
 
     var companyId = providedCompanyId > 0 ? providedCompanyId : await GetDefaultCompanyId();
     _logger.LogInformation($"Using CompanyId: {companyId}");
 
-    var activeMappings = previewData.ColumnMappings
-        .Where(m => m.IsMapped && !string.IsNullOrEmpty(m.DatabaseField))
-        .ToList();
-
     _logger.LogInformation($"Processing {activeMappings.Count} mapped columns");
+    _logger.LogInformation($"Processing {rows.Count} rows");
 
     int rowNumber = 0;
-    foreach (var row in previewData.Rows)
+    foreach (var row in rows)
     {
         rowNumber++;
         _logger.LogInformation($"=== PROCESSING ROW {rowNumber} ===");
@@ -624,60 +648,196 @@ else
         try
         {
             // Get EPFNo from the row
-            var epfMapping = activeMappings.FirstOrDefault(m => m.DatabaseField == "EPFNo");
-            var nicMapping = activeMappings.FirstOrDefault(m => m.DatabaseField == "NIC");
+            var epfNo = GetStringValue(row, "EPFNo");
+            var nic = GetStringValue(row, "NIC");
             
-            string epfNo = null;
-            string nic = null;
-            
-            if (epfMapping != null && row.TryGetValue(epfMapping.ExcelColumn, out var epfValue))
-            {
-                epfNo = epfValue?.ToString()?.Trim() ?? "";
-                epfNo = epfNo.TrimStart('0');
-                if (string.IsNullOrEmpty(epfNo)) epfNo = epfValue?.ToString()?.Trim() ?? "";
-                _logger.LogInformation($"Row {rowNumber}: EPFNo = '{epfNo}'");
-            }
-            
-            if (nicMapping != null && row.TryGetValue(nicMapping.ExcelColumn, out var nicValue))
-            {
-                nic = nicValue?.ToString()?.Trim()?.TrimStart('0') ?? "";
-                _logger.LogInformation($"Row {rowNumber}: NIC = '{nic}'");
-            }
+            _logger.LogInformation($"Row {rowNumber}: EPFNo = '{epfNo}', NIC = '{nic}'");
 
-            // Check for existing employee
+            // ========== CHECK FOR EXISTING EMPLOYEE ==========
             Employee existingEmployee = null;
+            List<string> searchCriteria = new List<string>();
             
             if (!string.IsNullOrEmpty(epfNo))
             {
-                existingEmployee = await _context.Employees
-                    .FirstOrDefaultAsync(e => e.EPFNo == epfNo && e.CompanyId == companyId);
+                // Clean EPFNo - remove non-numeric
+                var cleanEpf = System.Text.RegularExpressions.Regex.Replace(epfNo, @"[^0-9]", "");
+                cleanEpf = cleanEpf.TrimStart('0');
+                if (string.IsNullOrEmpty(cleanEpf)) cleanEpf = epfNo;
                 
-                if (existingEmployee == null)
+                existingEmployee = await _context.Employees
+                    .FirstOrDefaultAsync(e => e.EPFNo == cleanEpf && e.CompanyId == companyId);
+                searchCriteria.Add($"EPFNo: {cleanEpf}");
+                
+                // Also check with padded version
+                if (existingEmployee == null && cleanEpf.Length < 10)
                 {
-                    var paddedEpf = epfNo.PadLeft(3, '0');
-                    if (paddedEpf != epfNo)
+                    var paddedEpf = cleanEpf.PadLeft(3, '0');
+                    if (paddedEpf != cleanEpf)
                     {
                         existingEmployee = await _context.Employees
                             .FirstOrDefaultAsync(e => e.EPFNo == paddedEpf && e.CompanyId == companyId);
+                        if (existingEmployee != null)
+                        {
+                            searchCriteria.Add($"EPFNo (padded): {paddedEpf}");
+                        }
                     }
                 }
             }
             
+            // Check by NIC if not found by EPF
             if (existingEmployee == null && !string.IsNullOrEmpty(nic))
             {
+                var cleanedNic = nic.Trim().ToUpper();
                 existingEmployee = await _context.Employees
-                    .FirstOrDefaultAsync(e => e.NIC == nic && e.CompanyId == companyId);
+                    .FirstOrDefaultAsync(e => e.NIC == cleanedNic && e.CompanyId == companyId);
+                searchCriteria.Add($"NIC: {nic}");
             }
 
+            // ========== HANDLE DUPLICATE ==========
             if (existingEmployee != null)
             {
-                _logger.LogInformation($"Found existing employee: ID={existingEmployee.Id}, EPFNo='{existingEmployee.EPFNo}'");
+                _logger.LogInformation($"✅ Found existing employee: ID={existingEmployee.Id}, EPFNo='{existingEmployee.EPFNo}', NIC='{existingEmployee.NIC}'");
                 
                 if (overrideDuplicates)
                 {
-                    // UPDATE
+                    // ========== UPDATE EXISTING EMPLOYEE ==========
                     _logger.LogInformation($"Updating existing employee: {existingEmployee.Id}");
-                    UpdateEmployeeFromRow(existingEmployee, row, activeMappings, companyId);
+                    
+                    // Update employee from row
+                    existingEmployee.Title = GetStringValue(row, "Title") ?? existingEmployee.Title;
+                    existingEmployee.Initial = GetStringValue(row, "Initial") ?? existingEmployee.Initial;
+                    
+                    var firstName = GetStringValue(row, "FirstName");
+                    if (!string.IsNullOrEmpty(firstName)) existingEmployee.FirstName = firstName;
+                    
+                    var lastName = GetStringValue(row, "LastName");
+                    if (!string.IsNullOrEmpty(lastName)) existingEmployee.LastName = lastName;
+                    
+                    var systemName = GetStringValue(row, "SystemName");
+                    if (!string.IsNullOrEmpty(systemName)) existingEmployee.SystemName = systemName;
+                    
+                    var nicValue = GetStringValue(row, "NIC");
+                    if (!string.IsNullOrEmpty(nicValue)) existingEmployee.NIC = nicValue;
+                    
+                    var dob = GetDateTimeValue(row, "DOB");
+                    if (dob.HasValue) existingEmployee.DOB = dob;
+                    
+                    var gender = GetStringValue(row, "Gender");
+                    if (!string.IsNullOrEmpty(gender)) existingEmployee.Gender = gender;
+                    
+                    var maritalStatus = GetStringValue(row, "MaritalStatus");
+                    if (!string.IsNullOrEmpty(maritalStatus)) existingEmployee.MaritalStatus = maritalStatus;
+                    
+                    var bloodGroup = GetStringValue(row, "BloodGroup");
+                    if (!string.IsNullOrEmpty(bloodGroup)) existingEmployee.BloodGroup = bloodGroup;
+                    
+                    var religion = GetStringValue(row, "Religion");
+                    if (!string.IsNullOrEmpty(religion)) existingEmployee.Religion = religion;
+                    
+                    var nationality = GetStringValue(row, "Nationality");
+                    if (!string.IsNullOrEmpty(nationality)) existingEmployee.Nationality = nationality;
+                    
+                    var race = GetStringValue(row, "Race");
+                    if (!string.IsNullOrEmpty(race)) existingEmployee.Race = race;
+                    
+                    var mobile = GetStringValue(row, "Mobile");
+                    if (!string.IsNullOrEmpty(mobile)) existingEmployee.Mobile = mobile;
+                    
+                    var landPhone = GetStringValue(row, "LandPhone");
+                    if (!string.IsNullOrEmpty(landPhone)) existingEmployee.LandPhone = landPhone;
+                    
+                    var contactNo = GetStringValue(row, "ContactNo");
+                    if (!string.IsNullOrEmpty(contactNo)) existingEmployee.ContactNo = contactNo;
+                    
+                    var residentialAddress = GetStringValue(row, "ResidentialAddress");
+                    if (!string.IsNullOrEmpty(residentialAddress)) existingEmployee.ResidentialAddress = residentialAddress;
+                    
+                    var permanentAddress = GetStringValue(row, "PermanentAddress");
+                    if (!string.IsNullOrEmpty(permanentAddress)) existingEmployee.PermanentAddress = permanentAddress;
+                    
+                    // Salary fields
+                    if (row.ContainsKey("BasicSalary")) existingEmployee.BasicSalary = GetDecimalValue(row, "BasicSalary");
+                    if (row.ContainsKey("BudgetaryAllowance")) existingEmployee.BudgetaryAllowance = GetDecimalValue(row, "BudgetaryAllowance");
+                    if (row.ContainsKey("BudgetaryAllowance2")) existingEmployee.BudgetaryAllowance2 = GetDecimalValue(row, "BudgetaryAllowance2");
+                    if (row.ContainsKey("AttendanceAllowance")) existingEmployee.AttendanceAllowance = GetDecimalValue(row, "AttendanceAllowance");
+                    if (row.ContainsKey("FixedAllowance")) existingEmployee.FixedAllowance = GetDecimalValue(row, "FixedAllowance");
+                    if (row.ContainsKey("MealAllowance")) existingEmployee.MealAllowance = GetDecimalValue(row, "MealAllowance");
+                    if (row.ContainsKey("SpecialAllowance")) existingEmployee.SpecialAllowance = GetDecimalValue(row, "SpecialAllowance");
+                    if (row.ContainsKey("TransportAllowance")) existingEmployee.TransportAllowance = GetDecimalValue(row, "TransportAllowance");
+                    
+                    // Bank fields
+                    var accountNumber = GetStringValue(row, "AccountNumber");
+                    if (!string.IsNullOrEmpty(accountNumber)) existingEmployee.AccountNumber = accountNumber;
+                    
+                    var bankAccountName = GetStringValue(row, "BankAccountName");
+                    if (!string.IsNullOrEmpty(bankAccountName)) existingEmployee.BankAccountName = bankAccountName;
+                    
+                    var bankCode = GetStringValue(row, "BankCode");
+                    if (!string.IsNullOrEmpty(bankCode)) existingEmployee.BankCode = bankCode;
+                    
+                    var bankName = GetStringValue(row, "BankName");
+                    if (!string.IsNullOrEmpty(bankName)) existingEmployee.BankName = bankName;
+                    
+                    // Foreign keys
+                    var designationId = GetIntValue(row, "DesignationId");
+                    if (designationId.HasValue) existingEmployee.DesignationId = designationId;
+                    
+                    var departmentId = GetIntValue(row, "DepartmentId");
+                    if (departmentId.HasValue) existingEmployee.DepartmentId = departmentId;
+                    
+                    var shiftBlockId = GetIntValue(row, "ShiftBlockId");
+                    if (shiftBlockId.HasValue) existingEmployee.ShiftBlockId = shiftBlockId;
+                    
+                    // Date fields
+                    var dateOfAppointment = GetDateTimeValue(row, "DateOfAppointment");
+                    if (dateOfAppointment.HasValue) existingEmployee.DateOfAppointment = dateOfAppointment;
+                    
+                    // Boolean fields
+                    if (row.ContainsKey("EPFPay")) existingEmployee.EPFPay = GetBoolValue(row, "EPFPay");
+                    if (row.ContainsKey("Probation")) existingEmployee.Probation = GetBoolValue(row, "Probation");
+                    if (row.ContainsKey("Block")) existingEmployee.Block = GetBoolValue(row, "Block");
+                    if (row.ContainsKey("Resigned")) existingEmployee.Resigned = GetBoolValue(row, "Resigned");
+                    
+                    // Emergency Contacts
+                    var keen1Name = GetStringValue(row, "Keen1ContactName");
+                    if (!string.IsNullOrEmpty(keen1Name)) existingEmployee.Keen1ContactName = keen1Name;
+                    
+                    var keen1Number = GetStringValue(row, "Keen1ContactNumber");
+                    if (!string.IsNullOrEmpty(keen1Number)) existingEmployee.Keen1ContactNumber = keen1Number;
+                    
+                    var keen1Relationship = GetStringValue(row, "Keen1Relationship");
+                    if (!string.IsNullOrEmpty(keen1Relationship)) existingEmployee.Keen1Relationship = keen1Relationship;
+                    
+                    var keen1Address = GetStringValue(row, "Keen1Address");
+                    if (!string.IsNullOrEmpty(keen1Address)) existingEmployee.Keen1Address = keen1Address;
+                    
+                    var keen2Name = GetStringValue(row, "Keen2ContactName");
+                    if (!string.IsNullOrEmpty(keen2Name)) existingEmployee.Keen2ContactName = keen2Name;
+                    
+                    var keen2Number = GetStringValue(row, "Keen2ContactNumber");
+                    if (!string.IsNullOrEmpty(keen2Number)) existingEmployee.Keen2ContactNumber = keen2Number;
+                    
+                    var keen2Relationship = GetStringValue(row, "Keen2Relationship");
+                    if (!string.IsNullOrEmpty(keen2Relationship)) existingEmployee.Keen2Relationship = keen2Relationship;
+                    
+                    var keen2Address = GetStringValue(row, "Keen2Address");
+                    if (!string.IsNullOrEmpty(keen2Address)) existingEmployee.Keen2Address = keen2Address;
+                    
+                    var roleType = GetStringValue(row, "RoleType");
+                    if (!string.IsNullOrEmpty(roleType)) existingEmployee.RoleType = roleType;
+                    
+                    var exitType = GetStringValue(row, "ExitType");
+                    if (!string.IsNullOrEmpty(exitType)) existingEmployee.ExitType = exitType;
+                    
+                    var exitReason = GetStringValue(row, "ExitReason");
+                    if (!string.IsNullOrEmpty(exitReason)) existingEmployee.ExitReason = exitReason;
+                    
+                    var occupationNo = GetIntValue(row, "OccupationNo");
+                    if (occupationNo.HasValue) existingEmployee.OccupationNo = occupationNo;
+                    
+                    var occupationGrade = GetIntValue(row, "OccupationGrade");
+                    if (occupationGrade.HasValue) existingEmployee.OccupationGrade = occupationGrade;
+                    
                     existingEmployee.ModifiedDate = DateTime.UtcNow;
                     existingEmployee.ModifiedBy = User.Identity?.Name ?? "System";
                     
@@ -686,7 +846,7 @@ else
                     
                     await LogEmployeeOperation(existingEmployee.Id, "UPDATE", "Excel Import", row);
                     
-                    // Add processed row for UPDATE
+                    // ========== ADD TO PROCESSED DATA WITH STATUS ==========
                     var processedRow = new Dictionary<string, object>(row);
                     processedRow["_rowNumber"] = rowNumber;
                     processedRow["_status"] = "updated";
@@ -699,61 +859,66 @@ else
                 }
                 else
                 {
-                    // SKIP
+                    // ========== SKIP DUPLICATE ==========
                     _logger.LogInformation($"⏭️ Row {rowNumber} skipped (duplicate found)");
                     result.Skipped++;
                     result.Errors.Add(new ImportError
                     {
                         RowNumber = rowNumber,
-                        ErrorMessage = $"Duplicate employee found with EPFNo: {epfNo} (skipped)",
+                        ErrorMessage = $"Duplicate employee found with {string.Join(", ", searchCriteria)} (skipped)",
                         RowData = row.ToDictionary(kv => kv.Key, kv => kv.Value?.ToString() ?? string.Empty)
                     });
+                    
+                    // ========== ADD TO PROCESSED DATA WITH STATUS ==========
+                    var skippedRow = new Dictionary<string, object>(row);
+                    skippedRow["_rowNumber"] = rowNumber;
+                    skippedRow["_status"] = "skipped";
+                    skippedRow["_reason"] = "Duplicate found";
+                    skippedRow["_duplicateEmployeeId"] = existingEmployee.Id;
+                    skippedRow["_duplicateEPFNo"] = existingEmployee.EPFNo;
+                    result.ProcessedData.Add(skippedRow);
                 }
+                
+                // ========== IMPORTANT: Continue to next row ==========
+                continue;
             }
-            else
-            {
-                // CREATE
-                _logger.LogInformation($"Creating new employee for row {rowNumber}");
-                var employee = CreateEmployeeFromRow(row, activeMappings, companyId);
-                
-                if (!string.IsNullOrEmpty(employee.EPFNo))
-                {
-                    var exists = await _context.Employees
-                        .AnyAsync(e => e.EPFNo == employee.EPFNo && e.CompanyId == companyId);
-                    if (exists)
-                    {
-                        _logger.LogWarning($"EPFNo '{employee.EPFNo}' already exists, generating new one");
-                        employee.EPFNo = GenerateEPFNumber();
-                    }
-                }
-                else
-                {
-                    employee.EPFNo = GenerateEPFNumber();
-                }
-                
-                _context.Employees.Add(employee);
-                await _context.SaveChangesAsync();
-                
-                var employeeId = employee.Id;
-                
-                // ========== ADD PROCESSED ROW INSIDE THE CREATE BLOCK ==========
-                var processedRow = new Dictionary<string, object>(row);
-                processedRow["_rowNumber"] = rowNumber;
-                processedRow["_status"] = "created";
-                processedRow["_employeeId"] = employeeId;
-                processedRow["EPFNo"] = employee.EPFNo;  // Always include EPFNo
-                result.ProcessedData.Add(processedRow);
-                
-                await LogEmployeeOperation(employeeId, "CREATE", "Excel Import", row);
-                
-                result.Successful++;
-                _logger.LogInformation($"✅ Row {rowNumber} imported successfully");
-                _logger.LogInformation($"Employee created: ID={employeeId}, EPFNo='{employee.EPFNo}', SystemName='{employee.SystemName}'");
-            }
+
+            // ========== CREATE NEW EMPLOYEE ==========
+            _logger.LogInformation($"✅ No duplicate found. Creating new employee for row {rowNumber}");
+            var employee = CreateEmployeeFromRow(row, activeMappings, companyId);
+            
+            _context.Employees.Add(employee);
+            await _context.SaveChangesAsync();
+            
+            var employeeId = employee.Id;
+            
+            // ========== ADD TO PROCESSED DATA WITH STATUS ==========
+            var createdRow = new Dictionary<string, object>(row);
+            createdRow["_rowNumber"] = rowNumber;
+            createdRow["_status"] = "created";
+            createdRow["_employeeId"] = employeeId;
+            createdRow["EPFNo"] = employee.EPFNo;
+            createdRow["AttendanceId"] = employee.AttendanceId;
+            createdRow["EmployeeNo"] = employee.EmployeeNo;
+            result.ProcessedData.Add(createdRow);
+            
+            await LogEmployeeOperation(employeeId, "CREATE", "Excel Import", row);
+            
+            result.Successful++;
+            _logger.LogInformation($"✅ Row {rowNumber} imported successfully");
+            _logger.LogInformation($"Employee created: ID={employeeId}, EPFNo='{employee.EPFNo}', SystemName='{employee.SystemName}'");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, $"❌ Error importing row {rowNumber}");
+            
+            // ========== ADD ERROR TO PROCESSED DATA WITH STATUS ==========
+            var errorRow = new Dictionary<string, object>(row);
+            errorRow["_rowNumber"] = rowNumber;
+            errorRow["_status"] = "failed";
+            errorRow["_error"] = ex.Message;
+            result.ProcessedData.Add(errorRow);
+            
             result.Errors.Add(new ImportError
             {
                 RowNumber = rowNumber,
@@ -767,7 +932,7 @@ else
     if (result.Successful > 0)
     {
         await _context.SaveChangesAsync();
-        _logger.LogInformation($"Saved {result.Successful} employees to database");
+        _logger.LogInformation($"✅ Saved {result.Successful} employees to database");
     }
 
     result.Success = result.Failed == 0;
@@ -781,215 +946,375 @@ else
     
     return result;
 }
-        private Employee CreateEmployeeFromRow(
-            Dictionary<string, object> row,
-            List<ExcelColumnMapping> mappings,
-            int companyId)
+      private Employee CreateEmployeeFromRow(
+    Dictionary<string, object> row,
+    List<ExcelColumnMapping> mappings,
+    int companyId)
+{
+    _logger.LogInformation("=== CREATING EMPLOYEE FROM ROW ===");
+    
+    // Log what's actually in the row for debugging
+    _logger.LogInformation($"Row keys: {string.Join(", ", row.Keys)}");
+    
+    var employee = new Employee
+    {
+        CompanyId = companyId,
+        IsActive = true,
+        CreatedDate = DateTime.UtcNow,
+        ModifiedDate = DateTime.UtcNow,
+        CreatedBy = User.Identity?.Name ?? "System",
+        ModifiedBy = User.Identity?.Name ?? "System"
+    };
+
+    // ========== FIX: Get values directly from the row using DatabaseField names ==========
+    // The row already has keys like EPFNo, SystemName, DOB, etc.
+    // We don't need to use mappings to look up values - the row is already in the right format!
+    
+    // ========== GET EPFNo ==========
+    var epfNo = GetStringValue(row, "EPFNo");
+    if (!string.IsNullOrEmpty(epfNo))
+    {
+        epfNo = System.Text.RegularExpressions.Regex.Replace(epfNo, @"[^0-9]", "");
+        epfNo = epfNo.TrimStart('0');
+        if (string.IsNullOrEmpty(epfNo)) epfNo = GetStringValue(row, "EPFNo");
+    }
+    else
+    {
+        epfNo = GenerateEPFNumber();
+    }
+    employee.EPFNo = epfNo;
+
+    // ========== GET SystemName ==========
+    var systemName = GetStringValue(row, "SystemName");
+    if (string.IsNullOrEmpty(systemName))
+    {
+        var firstName_ = GetStringValue(row, "FirstName") ?? "";
+        var lastName_ = GetStringValue(row, "LastName") ?? "";
+        if (!string.IsNullOrEmpty(firstName_) || !string.IsNullOrEmpty(lastName_))
         {
-            _logger.LogInformation("=== CREATING EMPLOYEE FROM ROW ===");
-            
-            var employee = new Employee
-            {
-                CompanyId = companyId,
-                IsActive = true,
-                CreatedDate = DateTime.UtcNow,
-                ModifiedDate = DateTime.UtcNow,
-                CreatedBy = User.Identity?.Name ?? "System",
-                ModifiedBy = User.Identity?.Name ?? "System"
-            };
-
-            // Build mapped data from the row using the mappings
-            var mappedData = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
-            foreach (var mapping in mappings)
-            {
-                if (row.TryGetValue(mapping.ExcelColumn, out var value))
-                {
-                    _logger.LogInformation($"Mapping: '{mapping.ExcelColumn}' -> '{mapping.DatabaseField}' = '{value}'");
-                    mappedData[mapping.DatabaseField] = value;
-                }
-                else
-                {
-                    _logger.LogWarning($"Column '{mapping.ExcelColumn}' not found in row");
-                }
-            }
-
-            // Required fields with defaults
-            employee.FirstName = GetStringValue(mappedData, "FirstName") ?? "Employee";
-            employee.LastName = GetStringValue(mappedData, "LastName") ?? "User";
-            employee.SystemName = GetStringValue(mappedData, "SystemName") ?? $"{employee.FirstName} {employee.LastName}";
-            employee.EPFNo = GetStringValue(mappedData, "EPFNo") ?? GenerateEPFNumber();
-            employee.EmployeeNo = GetStringValue(mappedData, "EmployeeNo") ?? GenerateEmployeeNumber();
-
-            // Optional fields
-            employee.Title = GetStringValue(mappedData, "Title");
-            employee.Initial = GetStringValue(mappedData, "Initial");
-            employee.NIC = GetStringValue(mappedData, "NIC");
-            employee.DOB = GetDateTimeValue(mappedData, "DOB");
-            employee.Gender = GetStringValue(mappedData, "Gender");
-            employee.MaritalStatus = GetStringValue(mappedData, "MaritalStatus");
-            employee.BloodGroup = GetStringValue(mappedData, "BloodGroup");
-            employee.Religion = GetStringValue(mappedData, "Religion");
-            employee.Nationality = GetStringValue(mappedData, "Nationality");
-            employee.Race = GetStringValue(mappedData, "Race");
-            employee.Mobile = GetStringValue(mappedData, "Mobile");
-            employee.LandPhone = GetStringValue(mappedData, "LandPhone");
-            employee.ContactNo = GetStringValue(mappedData, "ContactNo");
-            employee.ResidentialAddress = GetStringValue(mappedData, "ResidentialAddress");
-            employee.PermanentAddress = GetStringValue(mappedData, "PermanentAddress");
-            employee.AttendanceId = GetStringValue(mappedData, "AttendanceId");
-            
-            // Salary fields
-            employee.BasicSalary = GetDecimalValue(mappedData, "BasicSalary");
-            employee.BudgetaryAllowance = GetDecimalValue(mappedData, "BudgetaryAllowance");
-            employee.BudgetaryAllowance2 = GetDecimalValue(mappedData, "BudgetaryAllowance2");
-            employee.AttendanceAllowance = GetDecimalValue(mappedData, "AttendanceAllowance");
-            employee.FixedAllowance = GetDecimalValue(mappedData, "FixedAllowance");
-            employee.MealAllowance = GetDecimalValue(mappedData, "MealAllowance");
-            employee.SpecialAllowance = GetDecimalValue(mappedData, "SpecialAllowance");
-            employee.TransportAllowance = GetDecimalValue(mappedData, "TransportAllowance");
-            
-            // Bank fields
-            employee.AccountNumber = GetStringValue(mappedData, "AccountNumber");
-            employee.BankAccountName = GetStringValue(mappedData, "BankAccountName");
-            employee.BankCode = GetStringValue(mappedData, "BankCode");
-            employee.BankName = GetStringValue(mappedData, "BankName");
-            
-            // Date fields
-            employee.DateOfAppointment = GetDateTimeValue(mappedData, "DateOfAppointment");
-            
-            // Foreign keys
-            employee.DesignationId = GetIntValue(mappedData, "DesignationId");
-            employee.DepartmentId = GetIntValue(mappedData, "DepartmentId");
-            employee.ShiftBlockId = GetIntValue(mappedData, "ShiftBlockId");
-            
-            // Boolean fields
-            employee.EPFPay = GetBoolValue(mappedData, "EPFPay");
-            employee.Probation = GetBoolValue(mappedData, "Probation");
-            employee.Block = GetBoolValue(mappedData, "Block");
-            employee.Resigned = GetBoolValue(mappedData, "Resigned");
-            
-            // Emergency Contacts
-            employee.Keen1ContactName = GetStringValue(mappedData, "Keen1ContactName");
-            employee.Keen1ContactNumber = GetStringValue(mappedData, "Keen1ContactNumber");
-            employee.Keen1Relationship = GetStringValue(mappedData, "Keen1Relationship");
-            employee.Keen1Address = GetStringValue(mappedData, "Keen1Address");
-            employee.Keen1Position = GetStringValue(mappedData, "Keen1Position");
-            employee.Keen1WorkPlace = GetStringValue(mappedData, "Keen1WorkPlace");
-            employee.Keen1WorkPlaceContact = GetStringValue(mappedData, "Keen1WorkPlaceContact");
-            
-            employee.Keen2ContactName = GetStringValue(mappedData, "Keen2ContactName");
-            employee.Keen2ContactNumber = GetStringValue(mappedData, "Keen2ContactNumber");
-            employee.Keen2Relationship = GetStringValue(mappedData, "Keen2Relationship");
-            employee.Keen2Address = GetStringValue(mappedData, "Keen2Address");
-            employee.Keen2Position = GetStringValue(mappedData, "Keen2Position");
-            employee.Keen2WorkPlace = GetStringValue(mappedData, "Keen2WorkPlace");
-            employee.Keen2WorkPlaceContact = GetStringValue(mappedData, "Keen2WorkPlaceContact");
-
-            // Role Type
-            employee.RoleType = GetStringValue(mappedData, "RoleType") ?? "Employee";
-            
-            // Exit fields
-            employee.ExitType = GetStringValue(mappedData, "ExitType");
-            employee.ExitReason = GetStringValue(mappedData, "ExitReason");
-
-            // Occupation
-            employee.OccupationNo = GetIntValue(mappedData, "OccupationNo");
-            employee.OccupationGrade = GetIntValue(mappedData, "OccupationGrade");
-
-            // Leave and Finance Approval
-            employee.LeaveApproval = GetStringValue(mappedData, "LeaveApproval");
-            employee.FinanceApproval = GetStringValue(mappedData, "FinanceApproval");
-
-            return employee;
+            systemName = (firstName_ + " " + lastName_).Trim();
         }
-
-        private void UpdateEmployeeFromRow(
-            Employee employee,
-            Dictionary<string, object> row,
-            List<ExcelColumnMapping> mappings,
-            int companyId)
+        if (string.IsNullOrEmpty(systemName))
         {
-            var mappedData = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
-            foreach (var mapping in mappings)
-            {
-                if (row.TryGetValue(mapping.ExcelColumn, out var value))
-                {
-                    mappedData[mapping.DatabaseField] = value;
-                }
-            }
-
-            // Update fields (only if provided)
-            if (mappedData.ContainsKey("Title")) employee.Title = GetStringValue(mappedData, "Title") ?? employee.Title;
-            if (mappedData.ContainsKey("Initial")) employee.Initial = GetStringValue(mappedData, "Initial") ?? employee.Initial;
-            if (mappedData.ContainsKey("FirstName")) employee.FirstName = GetStringValue(mappedData, "FirstName") ?? employee.FirstName;
-            if (mappedData.ContainsKey("LastName")) employee.LastName = GetStringValue(mappedData, "LastName") ?? employee.LastName;
-            if (mappedData.ContainsKey("SystemName")) employee.SystemName = GetStringValue(mappedData, "SystemName") ?? employee.SystemName;
-            if (mappedData.ContainsKey("NIC")) employee.NIC = GetStringValue(mappedData, "NIC") ?? employee.NIC;
-            if (mappedData.ContainsKey("DOB")) employee.DOB = GetDateTimeValue(mappedData, "DOB") ?? employee.DOB;
-            if (mappedData.ContainsKey("Gender")) employee.Gender = GetStringValue(mappedData, "Gender") ?? employee.Gender;
-            if (mappedData.ContainsKey("MaritalStatus")) employee.MaritalStatus = GetStringValue(mappedData, "MaritalStatus") ?? employee.MaritalStatus;
-            if (mappedData.ContainsKey("BloodGroup")) employee.BloodGroup = GetStringValue(mappedData, "BloodGroup") ?? employee.BloodGroup;
-            if (mappedData.ContainsKey("Religion")) employee.Religion = GetStringValue(mappedData, "Religion") ?? employee.Religion;
-            if (mappedData.ContainsKey("Nationality")) employee.Nationality = GetStringValue(mappedData, "Nationality") ?? employee.Nationality;
-            if (mappedData.ContainsKey("Race")) employee.Race = GetStringValue(mappedData, "Race") ?? employee.Race;
-            if (mappedData.ContainsKey("Mobile")) employee.Mobile = GetStringValue(mappedData, "Mobile") ?? employee.Mobile;
-            if (mappedData.ContainsKey("LandPhone")) employee.LandPhone = GetStringValue(mappedData, "LandPhone") ?? employee.LandPhone;
-            if (mappedData.ContainsKey("ContactNo")) employee.ContactNo = GetStringValue(mappedData, "ContactNo") ?? employee.ContactNo;
-            if (mappedData.ContainsKey("ResidentialAddress")) employee.ResidentialAddress = GetStringValue(mappedData, "ResidentialAddress") ?? employee.ResidentialAddress;
-            if (mappedData.ContainsKey("PermanentAddress")) employee.PermanentAddress = GetStringValue(mappedData, "PermanentAddress") ?? employee.PermanentAddress;
-            if (mappedData.ContainsKey("AttendanceId")) employee.AttendanceId = GetStringValue(mappedData, "AttendanceId") ?? employee.AttendanceId;
-            
-            // Salary fields
-            if (mappedData.ContainsKey("BasicSalary")) employee.BasicSalary = GetDecimalValue(mappedData, "BasicSalary");
-            if (mappedData.ContainsKey("BudgetaryAllowance")) employee.BudgetaryAllowance = GetDecimalValue(mappedData, "BudgetaryAllowance");
-            if (mappedData.ContainsKey("BudgetaryAllowance2")) employee.BudgetaryAllowance2 = GetDecimalValue(mappedData, "BudgetaryAllowance2");
-            if (mappedData.ContainsKey("AttendanceAllowance")) employee.AttendanceAllowance = GetDecimalValue(mappedData, "AttendanceAllowance");
-            if (mappedData.ContainsKey("FixedAllowance")) employee.FixedAllowance = GetDecimalValue(mappedData, "FixedAllowance");
-            if (mappedData.ContainsKey("MealAllowance")) employee.MealAllowance = GetDecimalValue(mappedData, "MealAllowance");
-            if (mappedData.ContainsKey("SpecialAllowance")) employee.SpecialAllowance = GetDecimalValue(mappedData, "SpecialAllowance");
-            if (mappedData.ContainsKey("TransportAllowance")) employee.TransportAllowance = GetDecimalValue(mappedData, "TransportAllowance");
-            
-            // Bank fields
-            if (mappedData.ContainsKey("AccountNumber")) employee.AccountNumber = GetStringValue(mappedData, "AccountNumber") ?? employee.AccountNumber;
-            if (mappedData.ContainsKey("BankAccountName")) employee.BankAccountName = GetStringValue(mappedData, "BankAccountName") ?? employee.BankAccountName;
-            if (mappedData.ContainsKey("BankCode")) employee.BankCode = GetStringValue(mappedData, "BankCode") ?? employee.BankCode;
-            if (mappedData.ContainsKey("BankName")) employee.BankName = GetStringValue(mappedData, "BankName") ?? employee.BankName;
-            
-            // Date fields
-            if (mappedData.ContainsKey("DateOfAppointment")) employee.DateOfAppointment = GetDateTimeValue(mappedData, "DateOfAppointment") ?? employee.DateOfAppointment;
-            
-            // Foreign keys
-            if (mappedData.ContainsKey("DesignationId")) employee.DesignationId = GetIntValue(mappedData, "DesignationId") ?? employee.DesignationId;
-            if (mappedData.ContainsKey("DepartmentId")) employee.DepartmentId = GetIntValue(mappedData, "DepartmentId") ?? employee.DepartmentId;
-            if (mappedData.ContainsKey("ShiftBlockId")) employee.ShiftBlockId = GetIntValue(mappedData, "ShiftBlockId") ?? employee.ShiftBlockId;
-            
-            // Boolean fields
-            if (mappedData.ContainsKey("EPFPay")) employee.EPFPay = GetBoolValue(mappedData, "EPFPay");
-            if (mappedData.ContainsKey("Probation")) employee.Probation = GetBoolValue(mappedData, "Probation");
-            if (mappedData.ContainsKey("Block")) employee.Block = GetBoolValue(mappedData, "Block");
-            if (mappedData.ContainsKey("Resigned")) employee.Resigned = GetBoolValue(mappedData, "Resigned");
-            
-            // Emergency Contacts
-            if (mappedData.ContainsKey("Keen1ContactName")) employee.Keen1ContactName = GetStringValue(mappedData, "Keen1ContactName") ?? employee.Keen1ContactName;
-            if (mappedData.ContainsKey("Keen1ContactNumber")) employee.Keen1ContactNumber = GetStringValue(mappedData, "Keen1ContactNumber") ?? employee.Keen1ContactNumber;
-            if (mappedData.ContainsKey("Keen1Relationship")) employee.Keen1Relationship = GetStringValue(mappedData, "Keen1Relationship") ?? employee.Keen1Relationship;
-            if (mappedData.ContainsKey("Keen1Address")) employee.Keen1Address = GetStringValue(mappedData, "Keen1Address") ?? employee.Keen1Address;
-            
-            if (mappedData.ContainsKey("Keen2ContactName")) employee.Keen2ContactName = GetStringValue(mappedData, "Keen2ContactName") ?? employee.Keen2ContactName;
-            if (mappedData.ContainsKey("Keen2ContactNumber")) employee.Keen2ContactNumber = GetStringValue(mappedData, "Keen2ContactNumber") ?? employee.Keen2ContactNumber;
-            if (mappedData.ContainsKey("Keen2Relationship")) employee.Keen2Relationship = GetStringValue(mappedData, "Keen2Relationship") ?? employee.Keen2Relationship;
-            if (mappedData.ContainsKey("Keen2Address")) employee.Keen2Address = GetStringValue(mappedData, "Keen2Address") ?? employee.Keen2Address;
-
-            if (mappedData.ContainsKey("RoleType")) employee.RoleType = GetStringValue(mappedData, "RoleType") ?? employee.RoleType;
-            if (mappedData.ContainsKey("ExitType")) employee.ExitType = GetStringValue(mappedData, "ExitType") ?? employee.ExitType;
-            if (mappedData.ContainsKey("ExitReason")) employee.ExitReason = GetStringValue(mappedData, "ExitReason") ?? employee.ExitReason;
-            
-            if (mappedData.ContainsKey("OccupationNo")) employee.OccupationNo = GetIntValue(mappedData, "OccupationNo") ?? employee.OccupationNo;
-            if (mappedData.ContainsKey("OccupationGrade")) employee.OccupationGrade = GetIntValue(mappedData, "OccupationGrade") ?? employee.OccupationGrade;
-            
-            if (mappedData.ContainsKey("LeaveApproval")) employee.LeaveApproval = GetStringValue(mappedData, "LeaveApproval") ?? employee.LeaveApproval;
-            if (mappedData.ContainsKey("FinanceApproval")) employee.FinanceApproval = GetStringValue(mappedData, "FinanceApproval") ?? employee.FinanceApproval;
+            systemName = "EMP" + epfNo;
         }
+        _logger.LogInformation($"SystemName not provided, generated: {systemName}");
+    }
+    employee.SystemName = systemName;
+
+    // ========== GET AttendanceId ==========
+    var attendanceId = GetStringValue(row, "AttendanceId");
+    if (string.IsNullOrEmpty(attendanceId))
+    {
+        attendanceId = epfNo;
+        _logger.LogInformation($"AttendanceId not provided, using EPFNo: {attendanceId}");
+    }
+    employee.AttendanceId = attendanceId;
+
+    // ========== EmployeeNo ==========
+    var employeeNo = GetStringValue(row, "EmployeeNo");
+    if (string.IsNullOrEmpty(employeeNo))
+    {
+        employeeNo = attendanceId;
+        _logger.LogInformation($"EmployeeNo not provided, using AttendanceId: {employeeNo}");
+    }
+    employee.EmployeeNo = employeeNo;
+
+    // ========== FirstName and LastName ==========
+    var firstName = GetStringValue(row, "FirstName");
+    employee.FirstName = string.IsNullOrEmpty(firstName) ? "" : firstName;
+    
+    var lastName = GetStringValue(row, "LastName");
+    employee.LastName = string.IsNullOrEmpty(lastName) ? "" : lastName;
+
+    // ========== Optional fields - get directly from row ==========
+    employee.Title = GetStringValue(row, "Title");
+    employee.Initial = GetStringValue(row, "Initial");
+    employee.NIC = GetStringValue(row, "NIC");
+    employee.DOB = GetDateTimeValue(row, "DOB");
+    employee.Gender = GetStringValue(row, "Gender");
+    employee.MaritalStatus = GetStringValue(row, "MaritalStatus");
+    employee.BloodGroup = GetStringValue(row, "BloodGroup");
+    employee.Religion = GetStringValue(row, "Religion");
+    employee.Nationality = GetStringValue(row, "Nationality");
+    employee.Race = GetStringValue(row, "Race");
+    employee.Mobile = GetStringValue(row, "Mobile");
+    employee.LandPhone = GetStringValue(row, "LandPhone");
+    employee.ContactNo = GetStringValue(row, "ContactNo");
+    employee.ResidentialAddress = GetStringValue(row, "ResidentialAddress");
+    employee.PermanentAddress = GetStringValue(row, "PermanentAddress");
+    
+    // Salary fields
+    employee.BasicSalary = GetDecimalValue(row, "BasicSalary");
+    employee.BudgetaryAllowance = GetDecimalValue(row, "BudgetaryAllowance");
+    employee.BudgetaryAllowance2 = GetDecimalValue(row, "BudgetaryAllowance2");
+    employee.AttendanceAllowance = GetDecimalValue(row, "AttendanceAllowance");
+    employee.FixedAllowance = GetDecimalValue(row, "FixedAllowance");
+    employee.MealAllowance = GetDecimalValue(row, "MealAllowance");
+    employee.SpecialAllowance = GetDecimalValue(row, "SpecialAllowance");
+    employee.TransportAllowance = GetDecimalValue(row, "TransportAllowance");
+    
+    // Bank fields
+    employee.AccountNumber = GetStringValue(row, "AccountNumber");
+    employee.BankAccountName = GetStringValue(row, "BankAccountName");
+    employee.BankCode = GetStringValue(row, "BankCode");
+    employee.BankName = GetStringValue(row, "BankName");
+    
+    // Date fields
+    employee.DateOfAppointment = GetDateTimeValue(row, "DateOfAppointment");
+    
+    // Foreign keys
+    employee.DesignationId = GetIntValue(row, "DesignationId");
+    employee.DepartmentId = GetIntValue(row, "DepartmentId");
+    employee.ShiftBlockId = GetIntValue(row, "ShiftBlockId");
+    
+    // Boolean fields
+    employee.EPFPay = GetBoolValue(row, "EPFPay");
+    employee.Probation = GetBoolValue(row, "Probation");
+    employee.Block = GetBoolValue(row, "Block");
+    employee.Resigned = GetBoolValue(row, "Resigned");
+    
+    // Emergency Contacts
+    employee.Keen1ContactName = GetStringValue(row, "Keen1ContactName");
+    employee.Keen1ContactNumber = GetStringValue(row, "Keen1ContactNumber");
+    employee.Keen1Relationship = GetStringValue(row, "Keen1Relationship");
+    employee.Keen1Address = GetStringValue(row, "Keen1Address");
+    employee.Keen1Position = GetStringValue(row, "Keen1Position");
+    employee.Keen1WorkPlace = GetStringValue(row, "Keen1WorkPlace");
+    employee.Keen1WorkPlaceContact = GetStringValue(row, "Keen1WorkPlaceContact");
+    
+    employee.Keen2ContactName = GetStringValue(row, "Keen2ContactName");
+    employee.Keen2ContactNumber = GetStringValue(row, "Keen2ContactNumber");
+    employee.Keen2Relationship = GetStringValue(row, "Keen2Relationship");
+    employee.Keen2Address = GetStringValue(row, "Keen2Address");
+    employee.Keen2Position = GetStringValue(row, "Keen2Position");
+    employee.Keen2WorkPlace = GetStringValue(row, "Keen2WorkPlace");
+    employee.Keen2WorkPlaceContact = GetStringValue(row, "Keen2WorkPlaceContact");
+
+    employee.RoleType = GetStringValue(row, "RoleType") ?? "Employee";
+    employee.ExitType = GetStringValue(row, "ExitType");
+    employee.ExitReason = GetStringValue(row, "ExitReason");
+    employee.OccupationNo = GetIntValue(row, "OccupationNo");
+    employee.OccupationGrade = GetIntValue(row, "OccupationGrade");
+    employee.LeaveApproval = GetStringValue(row, "LeaveApproval");
+    employee.FinanceApproval = GetStringValue(row, "FinanceApproval");
+
+    _logger.LogInformation($"Employee created: EPFNo='{employee.EPFNo}', AttendanceId='{employee.AttendanceId}', EmployeeNo='{employee.EmployeeNo}'");
+    _logger.LogInformation($"FirstName='{employee.FirstName}', LastName='{employee.LastName}', SystemName='{employee.SystemName}'");
+
+    return employee;
+}
+private void UpdateEmployeeFromRow(
+    Employee employee,
+    Dictionary<string, object> row,
+    List<ExcelColumnMapping> mappings,
+    int companyId)
+{
+    _logger.LogInformation("=== UPDATING EMPLOYEE FROM ROW ===");
+    
+    // Log what's in the row for debugging
+    _logger.LogInformation($"Row keys: {string.Join(", ", row.Keys)}");
+
+    // ========== Get values directly from the row using DatabaseField names ==========
+    
+    // Update EPFNo if provided
+    var epfNo = GetStringValue(row, "EPFNo");
+    if (!string.IsNullOrEmpty(epfNo))
+    {
+        epfNo = System.Text.RegularExpressions.Regex.Replace(epfNo, @"[^0-9]", "");
+        epfNo = epfNo.TrimStart('0');
+        if (string.IsNullOrEmpty(epfNo)) epfNo = GetStringValue(row, "EPFNo");
+        employee.EPFNo = epfNo;
+    }
+
+    // Update AttendanceId
+    var attendanceId = GetStringValue(row, "AttendanceId");
+    if (!string.IsNullOrEmpty(attendanceId))
+    {
+        employee.AttendanceId = attendanceId;
+    }
+    else if (string.IsNullOrEmpty(employee.AttendanceId))
+    {
+        employee.AttendanceId = employee.EPFNo;
+    }
+
+    // Update EmployeeNo
+    var employeeNo = GetStringValue(row, "EmployeeNo");
+    if (!string.IsNullOrEmpty(employeeNo))
+    {
+        employee.EmployeeNo = employeeNo;
+    }
+    else if (string.IsNullOrEmpty(employee.EmployeeNo))
+    {
+        employee.EmployeeNo = !string.IsNullOrEmpty(employee.AttendanceId) 
+            ? employee.AttendanceId 
+            : employee.EPFNo;
+    }
+
+    // Update FirstName and LastName
+    var firstName = GetStringValue(row, "FirstName");
+    if (!string.IsNullOrEmpty(firstName))
+    {
+        employee.FirstName = firstName;
+    }
+    
+    var lastName = GetStringValue(row, "LastName");
+    if (!string.IsNullOrEmpty(lastName))
+    {
+        employee.LastName = lastName;
+    }
+
+    // Update SystemName
+    var systemName = GetStringValue(row, "SystemName");
+    if (!string.IsNullOrEmpty(systemName))
+    {
+        employee.SystemName = systemName;
+    }
+    else
+    {
+        var fn = employee.FirstName ?? "";
+        var ln = employee.LastName ?? "";
+        if (!string.IsNullOrEmpty(fn) || !string.IsNullOrEmpty(ln))
+        {
+            employee.SystemName = (fn + " " + ln).Trim();
+        }
+        else
+        {
+            employee.SystemName = "EMP" + employee.EPFNo;
+        }
+    }
+
+    // ========== Update other fields if provided ==========
+    var title = GetStringValue(row, "Title");
+    if (!string.IsNullOrEmpty(title)) employee.Title = title;
+    
+    var initial = GetStringValue(row, "Initial");
+    if (!string.IsNullOrEmpty(initial)) employee.Initial = initial;
+    
+    var nic = GetStringValue(row, "NIC");
+    if (!string.IsNullOrEmpty(nic)) employee.NIC = nic;
+    
+    var dob = GetDateTimeValue(row, "DOB");
+    if (dob.HasValue) employee.DOB = dob;
+    
+    var gender = GetStringValue(row, "Gender");
+    if (!string.IsNullOrEmpty(gender)) employee.Gender = gender;
+    
+    var maritalStatus = GetStringValue(row, "MaritalStatus");
+    if (!string.IsNullOrEmpty(maritalStatus)) employee.MaritalStatus = maritalStatus;
+    
+    var bloodGroup = GetStringValue(row, "BloodGroup");
+    if (!string.IsNullOrEmpty(bloodGroup)) employee.BloodGroup = bloodGroup;
+    
+    var religion = GetStringValue(row, "Religion");
+    if (!string.IsNullOrEmpty(religion)) employee.Religion = religion;
+    
+    var nationality = GetStringValue(row, "Nationality");
+    if (!string.IsNullOrEmpty(nationality)) employee.Nationality = nationality;
+    
+    var race = GetStringValue(row, "Race");
+    if (!string.IsNullOrEmpty(race)) employee.Race = race;
+    
+    var mobile = GetStringValue(row, "Mobile");
+    if (!string.IsNullOrEmpty(mobile)) employee.Mobile = mobile;
+    
+    var landPhone = GetStringValue(row, "LandPhone");
+    if (!string.IsNullOrEmpty(landPhone)) employee.LandPhone = landPhone;
+    
+    var contactNo = GetStringValue(row, "ContactNo");
+    if (!string.IsNullOrEmpty(contactNo)) employee.ContactNo = contactNo;
+    
+    var residentialAddress = GetStringValue(row, "ResidentialAddress");
+    if (!string.IsNullOrEmpty(residentialAddress)) employee.ResidentialAddress = residentialAddress;
+    
+    var permanentAddress = GetStringValue(row, "PermanentAddress");
+    if (!string.IsNullOrEmpty(permanentAddress)) employee.PermanentAddress = permanentAddress;
+    
+    // Salary fields
+    if (row.ContainsKey("BasicSalary")) employee.BasicSalary = GetDecimalValue(row, "BasicSalary");
+    if (row.ContainsKey("BudgetaryAllowance")) employee.BudgetaryAllowance = GetDecimalValue(row, "BudgetaryAllowance");
+    if (row.ContainsKey("BudgetaryAllowance2")) employee.BudgetaryAllowance2 = GetDecimalValue(row, "BudgetaryAllowance2");
+    if (row.ContainsKey("AttendanceAllowance")) employee.AttendanceAllowance = GetDecimalValue(row, "AttendanceAllowance");
+    if (row.ContainsKey("FixedAllowance")) employee.FixedAllowance = GetDecimalValue(row, "FixedAllowance");
+    if (row.ContainsKey("MealAllowance")) employee.MealAllowance = GetDecimalValue(row, "MealAllowance");
+    if (row.ContainsKey("SpecialAllowance")) employee.SpecialAllowance = GetDecimalValue(row, "SpecialAllowance");
+    if (row.ContainsKey("TransportAllowance")) employee.TransportAllowance = GetDecimalValue(row, "TransportAllowance");
+    
+    // Bank fields
+    var accountNumber = GetStringValue(row, "AccountNumber");
+    if (!string.IsNullOrEmpty(accountNumber)) employee.AccountNumber = accountNumber;
+    
+    var bankAccountName = GetStringValue(row, "BankAccountName");
+    if (!string.IsNullOrEmpty(bankAccountName)) employee.BankAccountName = bankAccountName;
+    
+    var bankCode = GetStringValue(row, "BankCode");
+    if (!string.IsNullOrEmpty(bankCode)) employee.BankCode = bankCode;
+    
+    var bankName = GetStringValue(row, "BankName");
+    if (!string.IsNullOrEmpty(bankName)) employee.BankName = bankName;
+    
+    // Date fields
+    var dateOfAppointment = GetDateTimeValue(row, "DateOfAppointment");
+    if (dateOfAppointment.HasValue) employee.DateOfAppointment = dateOfAppointment;
+    
+    // Foreign keys
+    var designationId = GetIntValue(row, "DesignationId");
+    if (designationId.HasValue) employee.DesignationId = designationId;
+    
+    var departmentId = GetIntValue(row, "DepartmentId");
+    if (departmentId.HasValue) employee.DepartmentId = departmentId;
+    
+    var shiftBlockId = GetIntValue(row, "ShiftBlockId");
+    if (shiftBlockId.HasValue) employee.ShiftBlockId = shiftBlockId;
+    
+    // Boolean fields
+    if (row.ContainsKey("EPFPay")) employee.EPFPay = GetBoolValue(row, "EPFPay");
+    if (row.ContainsKey("Probation")) employee.Probation = GetBoolValue(row, "Probation");
+    if (row.ContainsKey("Block")) employee.Block = GetBoolValue(row, "Block");
+    if (row.ContainsKey("Resigned")) employee.Resigned = GetBoolValue(row, "Resigned");
+    
+    // Emergency Contacts
+    var keen1Name = GetStringValue(row, "Keen1ContactName");
+    if (!string.IsNullOrEmpty(keen1Name)) employee.Keen1ContactName = keen1Name;
+    
+    var keen1Number = GetStringValue(row, "Keen1ContactNumber");
+    if (!string.IsNullOrEmpty(keen1Number)) employee.Keen1ContactNumber = keen1Number;
+    
+    var keen1Relationship = GetStringValue(row, "Keen1Relationship");
+    if (!string.IsNullOrEmpty(keen1Relationship)) employee.Keen1Relationship = keen1Relationship;
+    
+    var keen1Address = GetStringValue(row, "Keen1Address");
+    if (!string.IsNullOrEmpty(keen1Address)) employee.Keen1Address = keen1Address;
+    
+    var keen2Name = GetStringValue(row, "Keen2ContactName");
+    if (!string.IsNullOrEmpty(keen2Name)) employee.Keen2ContactName = keen2Name;
+    
+    var keen2Number = GetStringValue(row, "Keen2ContactNumber");
+    if (!string.IsNullOrEmpty(keen2Number)) employee.Keen2ContactNumber = keen2Number;
+    
+    var keen2Relationship = GetStringValue(row, "Keen2Relationship");
+    if (!string.IsNullOrEmpty(keen2Relationship)) employee.Keen2Relationship = keen2Relationship;
+    
+    var keen2Address = GetStringValue(row, "Keen2Address");
+    if (!string.IsNullOrEmpty(keen2Address)) employee.Keen2Address = keen2Address;
+
+    var roleType = GetStringValue(row, "RoleType");
+    if (!string.IsNullOrEmpty(roleType)) employee.RoleType = roleType;
+    
+    var exitType = GetStringValue(row, "ExitType");
+    if (!string.IsNullOrEmpty(exitType)) employee.ExitType = exitType;
+    
+    var exitReason = GetStringValue(row, "ExitReason");
+    if (!string.IsNullOrEmpty(exitReason)) employee.ExitReason = exitReason;
+    
+    var occupationNo = GetIntValue(row, "OccupationNo");
+    if (occupationNo.HasValue) employee.OccupationNo = occupationNo;
+    
+    var occupationGrade = GetIntValue(row, "OccupationGrade");
+    if (occupationGrade.HasValue) employee.OccupationGrade = occupationGrade;
+
+    _logger.LogInformation($"Updated employee: EPFNo='{employee.EPFNo}', SystemName='{employee.SystemName}'");
+}
 
         private async Task<int> GetDefaultCompanyId()
         {
@@ -1135,6 +1460,7 @@ else
         public Dictionary<string, string> Mappings { get; set; } = new Dictionary<string, string>();
         public bool OverrideDuplicates { get; set; }
         public int? CompanyId { get; set; }
+        public List<Dictionary<string, object>> Rows { get; set; } = new List<Dictionary<string, object>>(); 
     }
 
     public class PreviewOnlyRequest
