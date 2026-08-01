@@ -16,11 +16,32 @@ namespace TRIVORA_API.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly string _connectionString;
-
-        public AttendanceController(ApplicationDbContext context, IConfiguration configuration)
+        private readonly IAttendanceService _attendanceService;
+        private readonly IHttpContextAccessor _httpContextAccessor;
+        public AttendanceController(ApplicationDbContext context, IConfiguration configuration, IAttendanceService attendanceService, IHttpContextAccessor httpContextAccessor)
         {
             _context = context;
             _connectionString = configuration.GetConnectionString("DefaultConnection");
+            _attendanceService = attendanceService;
+            _httpContextAccessor = httpContextAccessor;
+
+        }
+        [HttpPost("manual-entry")]
+        public async Task<IActionResult> AddManualEntry([FromBody] ManualAttendanceEntryDto entry)
+        {
+            if (entry == null || entry.EmployeeId <= 0)
+                return BadRequest(new { success = false, message = "Invalid data" });
+
+            // Extract companyId and userId from your JWT/session (example)
+            int companyId = int.Parse(User.FindFirst("CompanyId")?.Value ?? "0");
+            int userId = int.Parse(User.FindFirst("UserId")?.Value ?? "0");
+            string ipAddress = _httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString();
+
+            bool result = await _attendanceService.AddManualEntryAsync(entry, companyId, userId, ipAddress);
+            if (result)
+                return Ok(new { success = true, message = "Attendance saved and salary processing queued" });
+            else
+                return StatusCode(500, new { success = false, message = "Failed to save attendance" });
         }
         [HttpGet("employee-shift/{employeeId}")]
         public async Task<IActionResult> GetEmployeeShiftInfo(int employeeId)
@@ -28,18 +49,18 @@ namespace TRIVORA_API.Controllers
             try
             {
                 var employeeShift = await (from e in _context.Employees
-                                        join sb in _context.ShiftBlocks on e.ShiftBlockId equals sb.Id into shiftJoin
-                                        from shift in shiftJoin.DefaultIfEmpty()
-                                        where e.Id == employeeId
-                                        select new 
-                                        {
-                                            EmployeeId = e.Id,
-                                            ShiftBlockId = e.ShiftBlockId,
-                                            ShiftType = shift != null ? shift.ShiftType : "Single",
-                                            ShiftName = shift != null ? shift.ShiftName : "Default",
-                                            DefaultInTime = shift != null ? shift.DefaultInTime : TimeSpan.FromHours(9),
-                                            DefaultOutTime = shift != null ? shift.DefaultOutTime : TimeSpan.FromHours(17)
-                                        }).FirstOrDefaultAsync();
+                                           join sb in _context.ShiftBlocks on e.ShiftBlockId equals sb.Id into shiftJoin
+                                           from shift in shiftJoin.DefaultIfEmpty()
+                                           where e.Id == employeeId
+                                           select new
+                                           {
+                                               EmployeeId = e.Id,
+                                               ShiftBlockId = e.ShiftBlockId,
+                                               ShiftType = shift != null ? shift.ShiftType : "Single",
+                                               ShiftName = shift != null ? shift.ShiftName : "Default",
+                                               DefaultInTime = shift != null ? shift.DefaultInTime : TimeSpan.FromHours(9),
+                                               DefaultOutTime = shift != null ? shift.DefaultOutTime : TimeSpan.FromHours(17)
+                                           }).FirstOrDefaultAsync();
 
                 if (employeeShift == null)
                 {
@@ -90,7 +111,7 @@ namespace TRIVORA_API.Controllers
             try
             {
                 using var connection = new Microsoft.Data.SqlClient.SqlConnection(_connectionString);
-                
+
                 var sql = @"
                     SELECT TOP 1 
                         id as Id, company_id as CompanyId, year as Year, month as Month, 
@@ -98,12 +119,12 @@ namespace TRIVORA_API.Controllers
                     FROM Payroll_Process 
                     WHERE locked = 0 
                     ORDER BY payrollStartDate";
-                
+
                 var period = await connection.QueryFirstOrDefaultAsync<PayrollPeriod>(sql);
-                
+
                 if (period == null)
                     return NotFound(new { success = false, message = "No active salary period found" });
-                    
+
                 return Ok(new { success = true, data = period });
             }
             catch (Exception ex)
@@ -137,7 +158,7 @@ namespace TRIVORA_API.Controllers
             }
         }
 
-       
+
         // GET: api/attendance/timesheet
         [HttpGet("timesheet")]
         public async Task<IActionResult> GetTimesheet([FromQuery] int employeeId, [FromQuery] string year, [FromQuery] string monthName, [FromQuery] int salaryStartDay = 1)
@@ -151,19 +172,19 @@ namespace TRIVORA_API.Controllers
                 {
                     return NotFound(new { success = false, message = "Employee not found" });
                 }
-                Console.WriteLine($"MonthName1: {monthName }");
+                Console.WriteLine($"MonthName1: {monthName}");
                 // Convert month name to month number
                 int targetYear = string.IsNullOrEmpty(year) ? DateTime.Now.Year : int.Parse(year);
                 int targetMonth = GetMonthNumberFromName(monthName) ?? DateTime.Now.Month;
-                 Console.WriteLine($"MonthName2: {GetMonthNumberFromName(monthName) }");
+                Console.WriteLine($"MonthName2: {GetMonthNumberFromName(monthName)}");
                 if (targetMonth == 0)
                 {
                     return BadRequest(new { success = false, message = "Invalid month name provided" });
                 }
 
                 // Calculate period dates based on salary start day
-                DateTime startDate,  endDate;
-                
+                DateTime startDate, endDate;
+
                 if (salaryStartDay == 1)
                 {
                     // Standard month (1st to end of month)
@@ -174,11 +195,11 @@ namespace TRIVORA_API.Controllers
                 {
                     // Custom salary period (e.g., 16th to 15th of next month)
                     startDate = new DateTime(targetYear, targetMonth, salaryStartDay);
-                    
+
                     // Calculate end date (day before same day next month)
                     var nextMonth = startDate.AddMonths(1);
                     endDate = new DateTime(nextMonth.Year, nextMonth.Month, salaryStartDay).AddDays(-1);
-                    
+
                     // Handle year rollover for December
                     if (endDate.Month != nextMonth.Month)
                     {
@@ -200,7 +221,7 @@ namespace TRIVORA_API.Controllers
                     .Where(l => l.EmployeeId == employeeId &&
                             l.LeaveDate >= startDate && l.LeaveDate <= endDate &&
                             l.Status == "Approved")
-                    .Select(l => new 
+                    .Select(l => new
                     {
                         l.LeaveDate,
                         l.LeaveType,
@@ -218,14 +239,14 @@ namespace TRIVORA_API.Controllers
 
                 // Get employee's shift information by joining with ShiftBlocks
                 var employeeShift = await (from e in _context.Employees
-                                         join sb in _context.ShiftBlocks on e.ShiftBlockId equals sb.Id into shiftJoin
-                                         from shift in shiftJoin.DefaultIfEmpty()
-                                         where e.Id == employeeId
-                                         select new 
-                                         {
-                                             ShiftBlockId = e.ShiftBlockId,
-                                             ShiftType = shift != null ? shift.ShiftType : "Single"
-                                         }).FirstOrDefaultAsync();
+                                           join sb in _context.ShiftBlocks on e.ShiftBlockId equals sb.Id into shiftJoin
+                                           from shift in shiftJoin.DefaultIfEmpty()
+                                           where e.Id == employeeId
+                                           select new
+                                           {
+                                               ShiftBlockId = e.ShiftBlockId,
+                                               ShiftType = shift != null ? shift.ShiftType : "Single"
+                                           }).FirstOrDefaultAsync();
 
                 string employeeShiftType = employeeShift?.ShiftType ?? "Single";
 
@@ -253,7 +274,7 @@ namespace TRIVORA_API.Controllers
                     var otherLeaveType = "-";
                     if (isBlockedByOtherLeave)
                     {
-                        var blockingLeave = otherLeaves.FirstOrDefault(ol => 
+                        var blockingLeave = otherLeaves.FirstOrDefault(ol =>
                             currentDate >= ol.FromDate && currentDate <= ol.ToDate);
                         otherLeaveType = blockingLeave?.LeaveType ?? "Blocked";
                     }
@@ -328,11 +349,11 @@ namespace TRIVORA_API.Controllers
             }
         }
 
-        
+
         // Helper method to convert month name to month number
         private int? GetMonthNumberFromName(string monthName)
         {
-            
+
             if (string.IsNullOrEmpty(monthName))
                 return null;
 
@@ -375,9 +396,9 @@ namespace TRIVORA_API.Controllers
             return new DateTime(2020, monthNumber, 1).ToString("MMMM");
         }
 
-        
-        
-        private async Task ProcessLeaveApplications(int employeeId, int companyId, string userId, 
+
+
+        private async Task ProcessLeaveApplications(int employeeId, int companyId, string userId,
             DateTime date, List<LeaveApplicationData> leaveApplications)
         {
             if (leaveApplications == null || !leaveApplications.Any())
@@ -388,7 +409,7 @@ namespace TRIVORA_API.Controllers
 
             // Check if leave already exists for this date
             var existingLeave = await _context.Leave
-                .FirstOrDefaultAsync(l => l.EmployeeId == employeeId && 
+                .FirstOrDefaultAsync(l => l.EmployeeId == employeeId &&
                                          l.LeaveDate.Date == date.Date);
 
             if (existingLeave != null)

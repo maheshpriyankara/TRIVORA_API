@@ -11,6 +11,7 @@ namespace TRIVORA_API.Controllers;
 //
 [ApiController]
 [Route("api/[controller]")]
+
 public class EmployeesController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
@@ -200,7 +201,7 @@ public class EmployeesController : ControllerBase
             employee.Qualifications = new List<Qualification>();
             employee.WorkExperiences = new List<WorkExperience>();
             employee.LeaveCustomApprovers = new List<LeaveCustomApprover>();
-            employee.FinanceCustomApprovers = new List<FinanceCustomApprover>();
+            employee.FinanceCustomApprovers = new List<FinanceCustomApprovers>();
 
             // Create employee first
             _context.Employees.Add(employee);
