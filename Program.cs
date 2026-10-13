@@ -1,18 +1,53 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using TRIVORA_API.Data;
 using System.Reflection;
+using System.Text;
+using TRIVORA_API.Data;
+using TRIVORA_API.Services;
+using TrivoraHrisBackend.Repositories;
+using TrivoraHrisBackend.Service;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container
-builder.Services.AddControllers();
+// ============================================================
+// CONFIGURATION
+// ============================================================
+
+var jwtSecretKey = builder.Configuration["Jwt:SecretKey"]
+    ?? "trivora-super-secret-key-minimum-32-characters-long-2024";
+var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "TRIVORA_API";
+var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "TRIVORA_HRIS";
+var key = Encoding.ASCII.GetBytes(jwtSecretKey);
+
+Console.WriteLine($"🔑 JWT Secret Key length: {key.Length}");
+Console.WriteLine($"🔑 JWT Issuer: {jwtIssuer}");
+Console.WriteLine($"🔑 JWT Audience: {jwtAudience}");
+
+// ============================================================
+// CONTROLLERS + JSON OPTIONS
+// ============================================================
+
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.ReferenceHandler =
+            System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+        options.JsonSerializerOptions.DefaultIgnoreCondition =
+            System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
+    });
+
+// Suppress validation errors for non-nullable ref types receiving null
+builder.Services.AddControllers(options =>
+    options.SuppressImplicitRequiredAttributeForNonNullableReferenceTypes = true);
+
+// ============================================================
+// API EXPLORER + SWAGGER
+// ============================================================
+
 builder.Services.AddEndpointsApiExplorer();
 
-// Configure database context with SQL Server
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
-
-// Configure Swagger/OpenAPI with detailed information
 builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new OpenApiInfo
@@ -33,58 +68,240 @@ builder.Services.AddSwaggerGen(options =>
         }
     });
 
-    // Enable XML comments for API documentation
+    // JWT Authorization in Swagger UI
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "JWT Authorization header using the Bearer scheme. " +
+                      "Enter 'Bearer' [space] then your token. Example: 'Bearer 12345abcdef'",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
+    });
+
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
+
+    // XML comments
     var xmlFilename = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
-    options.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, xmlFilename));
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFilename);
+    if (File.Exists(xmlPath))
+    {
+        options.IncludeXmlComments(xmlPath);
+    }
 });
 
-// Add CORS to allow requests from your frontend application
+// ============================================================
+// DATABASE
+// ============================================================
+
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// ============================================================
+// AUTHENTICATION (JWT)
+// ============================================================
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.RequireHttpsMetadata = false;
+    options.SaveToken = true;
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(key),
+        ValidateIssuer = true,
+        ValidIssuer = jwtIssuer,
+        ValidateAudience = true,
+        ValidAudience = jwtAudience,
+        ValidateLifetime = true,
+        ClockSkew = TimeSpan.Zero
+    };
+
+    // ---- Detailed JWT event logging (helpful while debugging) ----
+    options.Events = new JwtBearerEvents
+    {
+        OnAuthenticationFailed = context =>
+        {
+            Console.WriteLine($"❌ Authentication failed: {context.Exception.Message}");
+
+            if (context.Exception is SecurityTokenExpiredException)
+                Console.WriteLine("❌ Token has expired");
+            else if (context.Exception is SecurityTokenInvalidSignatureException)
+            {
+                Console.WriteLine("❌ Token has invalid signature — Secret key mismatch!");
+                Console.WriteLine($"   Expected key length: {key.Length}");
+            }
+            else if (context.Exception is SecurityTokenInvalidIssuerException)
+                Console.WriteLine($"❌ Token has invalid issuer. Expected: {jwtIssuer}");
+            else if (context.Exception is SecurityTokenInvalidAudienceException)
+                Console.WriteLine($"❌ Token has invalid audience. Expected: {jwtAudience}");
+            else if (context.Exception is SecurityTokenInvalidLifetimeException)
+                Console.WriteLine("❌ Token has invalid lifetime");
+            else
+                Console.WriteLine($"❌ Unknown token validation error: {context.Exception.GetType().Name}");
+
+            return Task.CompletedTask;
+        },
+        OnTokenValidated = context =>
+        {
+            Console.WriteLine("✅ Token validated successfully");
+
+            if (context.Principal != null)
+            {
+                Console.WriteLine("📋 Token claims:");
+                foreach (var claim in context.Principal.Claims)
+                    Console.WriteLine($"  {claim.Type} = {claim.Value}");
+            }
+            return Task.CompletedTask;
+        },
+        OnChallenge = context =>
+        {
+            Console.WriteLine($"❌ Challenge triggered: {context.Error} - {context.ErrorDescription}");
+            return Task.CompletedTask;
+        },
+        OnMessageReceived = context =>
+        {
+            var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
+            if (!string.IsNullOrEmpty(authHeader))
+            {
+                var token = authHeader.StartsWith("Bearer ")
+                    ? authHeader.Substring(7)
+                    : authHeader;
+
+                Console.WriteLine(
+                    $"📩 Received token: {token.Substring(0, Math.Min(20, token.Length))}...");
+                Console.WriteLine($"📩 Token length: {token.Length}");
+            }
+            else
+            {
+                Console.WriteLine("ℹ️ No Authorization header found (normal for login)");
+            }
+            return Task.CompletedTask;
+        }
+    };
+});
+
+builder.Services.AddAuthorization();
+
+// ============================================================
+// CORS
+// ============================================================
+
 builder.Services.AddCors(options =>
 {
+    var allowedOrigins = builder.Configuration
+        .GetSection("Cors:AllowedOrigins")
+        .Get<string[]>()
+        ?? new[]
+        {
+            "https://localhost:5246",
+            "http://localhost:5246",
+            "https://localhost:7157",
+            "http://localhost:5159",
+            "https://localhost:44300",
+            "http://localhost:44300"
+        };
+
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("https://localhost:5246", "http://localhost:5246") // Added both HTTP and HTTPS
+        policy.WithOrigins(allowedOrigins)
               .AllowAnyHeader()
-              .AllowAnyMethod();
+              .AllowAnyMethod()
+              .AllowCredentials();
     });
 });
-// In Program.cs
-builder.Services.AddControllers()
-    .AddJsonOptions(options =>
-    {
-        options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
-        options.JsonSerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
-    });
 
-// This line helps avoid validation errors for non-nullable properties receiving null
-builder.Services.AddControllers(
-    options => options.SuppressImplicitRequiredAttributeForNonNullableReferenceTypes = true);
-// Add this to your Program.cs
+// ============================================================
+// DEPENDENCY INJECTION — APPLICATION SERVICES
+// ============================================================
+
+// Core services
+builder.Services.AddScoped<IAttendanceService, AttendanceService>();
+builder.Services.AddScoped<IPaySheetService, PaySheetService>();
+builder.Services.AddScoped<ICompanySettingsService, CompanySettingsService>();
+// Repositories
+builder.Services.AddScoped<PaySheetRepository>();
+builder.Services.AddScoped<PaySheetPrintRepository>();
+
+// Loggers
+builder.Services.AddScoped<AttendanceManualLogger>();
+
+// Email
+builder.Services.Configure<TrivoraHrisBackend.Models.EmailSettings>(
+    builder.Configuration.GetSection("EmailSettings"));
+builder.Services.AddScoped<EmailService>();
+
+// HTTP context
+builder.Services.AddHttpContextAccessor();
+
+// ============================================================
+// BUILD
+// ============================================================
+
 var app = builder.Build();
 
-// Configure the HTTP request pipeline
+// ============================================================
+// MIDDLEWARE PIPELINE
+// ============================================================
+
+// 🔍 Request logging — MUST be first
+app.Use(async (context, next) =>
+{
+    Console.WriteLine($"📨 Request: {context.Request.Method} {context.Request.Path}");
+
+    var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
+    if (!string.IsNullOrEmpty(authHeader))
+    {
+        Console.WriteLine(
+            $"📨 Authorization: {authHeader.Substring(0, Math.Min(30, authHeader.Length))}...");
+    }
+    else
+    {
+        Console.WriteLine("ℹ️ No Authorization header (expected for login)");
+    }
+
+    await next();
+});
+
+// Swagger (dev only)
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI(options =>
     {
         options.SwaggerEndpoint("/swagger/v1/swagger.json", "TRIVORA API v1");
+        options.RoutePrefix = string.Empty;
     });
 }
 
+// ⚠️ Order matters here
 app.UseHttpsRedirection();
-
-// ---> CORRECT MIDDLEWARE ORDER STARTS HERE <---
-// 1. UseRouting should come first
 app.UseRouting();
-
-// 2. UseCors must come after UseRouting and before UseAuthorization
 app.UseCors("AllowFrontend");
+app.UseStaticFiles();
 
-// 3. Authentication & Authorization
+app.UseAuthentication();
 app.UseAuthorization();
 
-// 4. Finally, map your controller endpoints
 app.MapControllers();
+app.MapFallbackToFile("index.html");
 
 app.Run();

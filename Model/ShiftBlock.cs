@@ -114,10 +114,12 @@ namespace TRIVORA_API.Models
         
         [Column(TypeName = "decimal(18,2)")]
         public decimal? LateDeductRate { get; set; }
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? LateDeductRate2 { get; set; }
         
         public int? LateGracePeriod { get; set; }
         
-        // Overtime Settings
+        // Overtime Settings - Regular
         [Required]
         public bool IsOvertimePay { get; set; } = false;
         
@@ -126,9 +128,56 @@ namespace TRIVORA_API.Models
         
         [Column(TypeName = "decimal(18,2)")]
         public decimal? OvertimeRate { get; set; }
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? OvertimeRate2 { get; set; }
         
         [Column(TypeName = "decimal(5,2)")]
         public decimal? OtMinimumHours { get; set; }
+        
+        // ===== NEW: Overtime - Poya Day =====
+        [Required]
+        public bool IsOvertimePoyaDay { get; set; } = false;
+        
+        [StringLength(20)]
+        public string? OvertimePoyaDayType { get; set; }
+        
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? OvertimePoyaDayRate { get; set; }
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? OvertimePoyaDayRate2 { get; set; }
+        
+        [Column(TypeName = "decimal(5,2)")]
+        public decimal? OtPoyaDayMinimumHours { get; set; }
+        
+        // ===== NEW: Overtime - Bank Holiday & Mercantile =====
+        [Required]
+        public bool IsOvertimeBankHoliday { get; set; } = false;
+        
+        [StringLength(20)]
+        public string? OvertimeBankHolidayType { get; set; }
+        
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? OvertimeBankHolidayRate { get; set; }
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? OvertimeBankHolidayRate2 { get; set; }
+        
+        [Column(TypeName = "decimal(5,2)")]
+        public decimal? OtBankHolidayMinimumHours { get; set; }
+        
+        // ===== NEW: Overtime - Sunday & Other Holiday =====
+        [Required]
+        public bool IsOvertimeSundayHoliday { get; set; } = false;
+        
+        [StringLength(20)]
+        public string? OvertimeSundayHolidayType { get; set; }
+        
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? OvertimeSundayHolidayRate { get; set; }
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? OvertimeSundayHolidayRate2 { get; set; }
+        
+        [Column(TypeName = "decimal(5,2)")]
+        public decimal? OtSundayHolidayMinimumHours { get; set; }
         
         // Shift Type
         [Required]

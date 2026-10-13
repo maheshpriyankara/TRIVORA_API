@@ -21,58 +21,80 @@ namespace TRIVORA_API.Data
         public DbSet<Qualification> Qualifications { get; set; }
         public DbSet<WorkExperience> WorkExperiences { get; set; }
         public DbSet<AdminUser> Admin_Users { get; set; }
+        
+        public DbSet<ShiftsTimesheet> ShiftsTimesheet { get; set; }
+
+        public DbSet<Calendar> Calendar { get; set; }
         // New tables for custom approvers
         public DbSet<LeaveCustomApprover> LeaveCustomApprovers { get; set; }
-        public DbSet<FinanceCustomApprover> FinanceCustomApprovers { get; set; }
+        public DbSet<FinanceCustomApprovers> FinanceCustomApprovers { get; set; }
+        public DbSet<FinanceCustomApprovers> Paysheet { get; set; }
 
+        // Excel Import
+        public DbSet<ExcelImport> ExcelImports { get; set; }
+
+        public DbSet<PaySheet> PaySheet { get; set; }
+        
+         public DbSet<EmployeeAuditLog> EmployeeAuditLogs { get; set; }
         // Audit tables
         public DbSet<BasicSalaryHistory> BasicSalaryHistory { get; set; }
         public DbSet<EmployeeStatusHistory> EmployeeStatusHistory { get; set; }
         public DbSet<BankDetailsHistory> BankDetailsHistory { get; set; }
-
-        // Add Deductions table
+        
+        // Attendance and Process
+        public DbSet<AttendanceRecord> AttendanceRecords { get; set; }
+        public DbSet<ProcessQueue> ProcessQueues { get; set; }
+        public DbSet<AttendanceManualLog> AttendanceManualLogs { get; set; }
+        
+        // Deductions and TimeSheet
         public DbSet<Deduction> Deductions { get; set; }
         public DbSet<TimeSheet> TimeSheets { get; set; }
-
-         public DbSet<Leave> Leave { get; set; }
-          public DbSet<OtherLeaves> OtherLeaves { get; set; }
+        // Leave
+        public DbSet<Leave> Leave { get; set; }
+        public DbSet<OtherLeaves> OtherLeaves { get; set; }
+        
+        // Allowances
         public DbSet<Allowance> Allowances { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
 
+            // Excel Imports Configuration
+            ConfigureExcelImports(modelBuilder);
+
             // Leave configuration  
-        // Leave configuration  
-        modelBuilder.Entity<Leave>(entity =>
-        {
-            entity.ToTable("Leave");
-            entity.HasKey(e => e.Id);
+            modelBuilder.Entity<Leave>(entity =>
+            {
+                entity.ToTable("Leave");
+                entity.HasKey(e => e.Id);
 
-            // Configure default values
-            entity.Property(e => e.IsHalfDay).HasDefaultValue(false);
-            entity.Property(e => e.Status).HasDefaultValue("Pending");
-            entity.Property(e => e.CreatedDate).HasDefaultValueSql("GETDATE()");
-            
-            // Configure string lengths
-            entity.Property(e => e.LeaveType).HasMaxLength(50);
-            entity.Property(e => e.Status).HasMaxLength(50);
-            entity.Property(e => e.Remarks).HasMaxLength(500);
-            
-            // Configure the new properties
-            entity.Property(e => e.CancelledBy);
-            entity.Property(e => e.CancelledDate);
-        });
+                // Configure default values
+                entity.Property(e => e.IsHalfDay).HasDefaultValue(false);
+                entity.Property(e => e.Status).HasDefaultValue("Pending");
+                entity.Property(e => e.CreatedDate).HasDefaultValueSql("GETDATE()");
+                
+                // Configure string lengths
+                entity.Property(e => e.LeaveType).HasMaxLength(50);
+                entity.Property(e => e.Status).HasMaxLength(50);
+                entity.Property(e => e.Remarks).HasMaxLength(500);
+                
+                // Configure the new properties
+                entity.Property(e => e.CancelledBy);
+                entity.Property(e => e.CancelledDate);
+            });
 
-        // OtherLeaves configuration
-        modelBuilder.Entity<OtherLeaves>(entity =>
-        {
-            entity.ToTable("OtherLeaves");
-            entity.HasKey(e => e.Id);
+            // OtherLeaves configuration
+            modelBuilder.Entity<OtherLeaves>(entity =>
+            {
+                entity.ToTable("OtherLeaves");
+                entity.HasKey(e => e.Id);
 
-            // Configure default values
-            entity.Property(e => e.Status).HasDefaultValue("Pending");
-            entity.Property(e => e.ApprovedDate).HasDefaultValueSql("GETDATE()");
-        });
+                // Configure default values
+                entity.Property(e => e.Status).HasDefaultValue("Pending");
+                entity.Property(e => e.ApprovedDate).HasDefaultValueSql("GETDATE()");
+            });
+
             // SIMPLE Deductions table configuration - just map to table
             modelBuilder.Entity<Deduction>().ToTable("Deductions");
 
@@ -92,8 +114,6 @@ namespace TRIVORA_API.Data
                 .HasIndex(d => new { d.CompanyId, d.DepartmentName })
                 .IsUnique();
 
-            
-
             modelBuilder.Entity<TimeSheet>(entity =>
             {
                 entity.ToTable("TimeSheet");
@@ -108,7 +128,8 @@ namespace TRIVORA_API.Data
                 entity.Property(e => e.DayType).HasDefaultValue("Normal");
                 entity.Property(e => e.PayType).HasDefaultValue("Regular");
             });
-            // Shift Blocks
+
+            // Shift Blocks - UPDATED CONFIGURATION
             modelBuilder.Entity<ShiftBlock>(entity =>
             {
                 entity.HasKey(e => e.Id);
@@ -124,9 +145,8 @@ namespace TRIVORA_API.Data
                 entity.Property(e => e.AttendanceAllowancePercent3).HasPrecision(5, 2);
                 entity.Property(e => e.AttendanceAllowancePercent4).HasPrecision(5, 2);
                 entity.Property(e => e.AttendanceAllowancePercent5).HasPrecision(5, 2);
-                entity.Property(e => e.LateDeductRate).HasPrecision(18, 2);
-                entity.Property(e => e.OvertimeRate).HasPrecision(18, 2);
-                entity.Property(e => e.OtMinimumHours).HasPrecision(5, 2);
+                
+                // ======== UPDATED: Late Deduction Properties ========
 
                 // Configure default values
                 entity.Property(e => e.IsActive).HasDefaultValue(true);
@@ -135,6 +155,7 @@ namespace TRIVORA_API.Data
                 entity.Property(e => e.IsAttendanceAllowance).HasDefaultValue(false);
                 entity.Property(e => e.IsLateDeduction).HasDefaultValue(false);
                 entity.Property(e => e.IsOvertimePay).HasDefaultValue(false);
+                entity.Property(e => e.IsOvertimePoyaDay).HasDefaultValue(false);
                 entity.Property(e => e.ShiftType).HasDefaultValue("Single");
             });
 
@@ -155,6 +176,17 @@ namespace TRIVORA_API.Data
                 // Configure decimal precision for salary fields
                 entity.Property(e => e.BasicSalary).HasPrecision(18, 2);
                 entity.Property(e => e.BudgetaryAllowance).HasPrecision(18, 2);
+                entity.Property(e => e.BudgetaryAllowance2).HasPrecision(18, 2);
+                entity.Property(e => e.AttendanceAllowance).HasPrecision(18, 2);
+                entity.Property(e => e.FixedAllowance).HasPrecision(18, 2);
+                entity.Property(e => e.MealAllowance).HasPrecision(18, 2);
+                entity.Property(e => e.SpecialAllowance).HasPrecision(18, 2);
+                entity.Property(e => e.TransportAllowance).HasPrecision(18, 2);
+                entity.Property(e => e.AccommodationAllowance).HasPrecision(18, 2);
+                entity.Property(e => e.FuelAllowance).HasPrecision(18, 2);
+                entity.Property(e => e.CostOfLivingAllowance).HasPrecision(18, 2);
+                entity.Property(e => e.PerformanceAllowance).HasPrecision(18, 2);
+                entity.Property(e => e.HealthAllowance).HasPrecision(18, 2);
 
                 // Configure new fields
                 entity.Property(e => e.OccupationNo);
@@ -241,7 +273,7 @@ namespace TRIVORA_API.Data
             });
 
             // Finance Custom Approvers
-            modelBuilder.Entity<FinanceCustomApprover>(entity =>
+            modelBuilder.Entity<FinanceCustomApprovers>(entity =>
             {
                 entity.HasKey(e => e.Id);
 
@@ -261,6 +293,44 @@ namespace TRIVORA_API.Data
 
             // Audit Tables Configuration
             ConfigureAuditTables(modelBuilder);
+        }
+
+        private void ConfigureExcelImports(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<ExcelImport>(entity =>
+            {
+                entity.ToTable("ExcelImports");
+                entity.HasKey(e => e.Id);
+
+                entity.Property(e => e.FileName)
+                    .HasMaxLength(255)
+                    .IsRequired();
+
+                entity.Property(e => e.UploadedBy)
+                    .HasMaxLength(100)
+                    .IsRequired();
+
+                entity.Property(e => e.Status)
+                    .HasMaxLength(50)
+                    .HasDefaultValue("Pending");
+
+                entity.Property(e => e.MappingData)
+                    .HasColumnType("nvarchar(max)");
+
+                entity.Property(e => e.RowData)
+                    .HasColumnType("nvarchar(max)");
+
+                entity.Property(e => e.ErrorMessage)
+                    .HasColumnType("nvarchar(max)");
+
+                entity.Property(e => e.CreatedDate)
+                    .HasDefaultValueSql("GETDATE()");
+
+                // Add indexes for better performance
+                entity.HasIndex(e => e.Status);
+                entity.HasIndex(e => e.UploadDate);
+                entity.HasIndex(e => e.UploadedBy);
+            });
         }
 
         private void ConfigureAuditTables(ModelBuilder modelBuilder)

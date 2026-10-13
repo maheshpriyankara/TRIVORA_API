@@ -6,9 +6,12 @@ using System.Linq;
 using System.Threading.Tasks;
 using TRIVORA_API.Data;
 using TRIVORA_API.Models;
+using System.Text.Json;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 
 namespace TRIVORA_API.Controllers;
-//
+
 [ApiController]
 [Route("api/[controller]")]
 public class EmployeesController : ControllerBase
@@ -22,6 +25,9 @@ public class EmployeesController : ControllerBase
         _logger = logger;
     }
 
+    // ============================================================
+    // SEARCH
+    // ============================================================
     [HttpGet("search")]
     public async Task<ActionResult<ApiResponse<List<EmployeeSearchResult>>>> SearchEmployees([FromQuery] string term, [FromQuery] int? companyId)
     {
@@ -34,47 +40,50 @@ public class EmployeesController : ControllerBase
                     Message = "Search term must be at least 2 characters long"
                 });
 
-            var query = _context.Employees
-                .Where(e => e.IsActive);
+            var query = _context.Employees.Where(e => e.IsActive);
 
-            // Filter by company if provided
             if (companyId.HasValue && companyId > 0)
                 query = query.Where(e => e.CompanyId == companyId.Value);
 
-            // Search across multiple fields using LIKE pattern
             var searchTerm = $"%{term}%";
+
+            // ✅ EPFNo is now int in the model
+            int? epfAsInt = int.TryParse(term, out int parsedEpf) ? parsedEpf : (int?)null;
+
             var employees = await query
                 .Where(e =>
                     EF.Functions.Like(e.FirstName, searchTerm) ||
                     EF.Functions.Like(e.LastName, searchTerm) ||
                     EF.Functions.Like(e.SystemName, searchTerm) ||
-                    EF.Functions.Like(e.EPFNo, searchTerm) ||
-                    EF.Functions.Like(e.EmployeeNo, searchTerm) ||
-                    EF.Functions.Like(e.AttendanceId, searchTerm) ||
-                    EF.Functions.Like(e.NIC, searchTerm) ||
-                    EF.Functions.Like(e.Mobile, searchTerm) ||
+                    (e.EmployeeNo != null && EF.Functions.Like(e.EmployeeNo, searchTerm)) ||
+                    // ✅ AttendanceId is now string? in the model
+                    (e.AttendanceId != null && EF.Functions.Like(e.AttendanceId, searchTerm)) ||
+                    (e.NIC != null && EF.Functions.Like(e.NIC, searchTerm)) ||
+                    (e.Mobile != null && EF.Functions.Like(e.Mobile, searchTerm)) ||
+                    // ✅ EPFNo exact match using int parse
+                    (epfAsInt.HasValue && e.EPFNo == epfAsInt.Value) ||
                     (e.FirstName + " " + e.LastName).Contains(term)
                 )
+                .OrderBy(e => e.FirstName)
+                .ThenBy(e => e.LastName)
+                .Take(50)
                 .Select(e => new EmployeeSearchResult
                 {
                     Id = e.Id,
                     EmployeeNo = e.EmployeeNo ?? string.Empty,
-                    EPFNo = e.EPFNo ?? string.Empty,
-                    AttendanceId = e.AttendanceId ?? string.Empty,
+                    EPFNo = e.EPFNo.ToString(),                       // int → string
+                    AttendanceId = e.AttendanceId ?? string.Empty,    // already string?
                     FirstName = e.FirstName ?? string.Empty,
                     LastName = e.LastName ?? string.Empty,
                     SystemName = e.SystemName ?? string.Empty,
                     NIC = e.NIC ?? string.Empty,
                     Mobile = e.Mobile ?? string.Empty,
                     CompanyId = e.CompanyId,
-                    DesignationId = e.DesignationId ?? 0, // Handle nullable int
-                    DepartmentId = e.DepartmentId ?? 0,   // Handle nullable int
+                    DesignationId = e.DesignationId ?? 0,
+                    DepartmentId = e.DepartmentId ?? 0,
                     FullName = (e.FirstName ?? "") + " " + (e.LastName ?? ""),
                     DisplayText = $"{e.FirstName} {e.LastName} ({e.EPFNo}) - {e.SystemName}"
                 })
-                .OrderBy(e => e.FirstName)
-                .ThenBy(e => e.LastName)
-                .Take(50)
                 .ToListAsync();
 
             return Ok(new ApiResponse<List<EmployeeSearchResult>>
@@ -90,12 +99,11 @@ public class EmployeesController : ControllerBase
             return StatusCode(500, new ApiResponse<List<EmployeeSearchResult>>
             {
                 Success = false,
-                Message = "Internal server error"
+                Message = $"Internal server error: {ex.Message}"
             });
         }
     }
 
-    // Updated Search DTO with proper null handling
     public class EmployeeSearchResult
     {
         public int Id { get; set; }
@@ -108,13 +116,15 @@ public class EmployeesController : ControllerBase
         public string NIC { get; set; } = string.Empty;
         public string Mobile { get; set; } = string.Empty;
         public int CompanyId { get; set; }
-        public int DesignationId { get; set; } // Changed from int? to int
-        public int DepartmentId { get; set; }  // Changed from int? to int
+        public int DesignationId { get; set; }
+        public int DepartmentId { get; set; }
         public string FullName { get; set; } = string.Empty;
         public string DisplayText { get; set; } = string.Empty;
     }
 
-    // GET: api/employees/5
+    // ============================================================
+    // GET BY ID
+    // ============================================================
     [HttpGet("{id}")]
     public async Task<ActionResult<ApiResponse<Employee>>> GetEmployee(int id)
     {
@@ -126,7 +136,7 @@ public class EmployeesController : ControllerBase
                 .FirstOrDefaultAsync(e => e.Id == id && e.IsActive);
 
             if (employee == null)
-                return NotFound(new ApiResponse<Employee> { Success = false, Message = "Employee not foundff" });
+                return NotFound(new ApiResponse<Employee> { Success = false, Message = "Employee not found" });
 
             return Ok(new ApiResponse<Employee> { Success = true, Data = employee });
         }
@@ -137,19 +147,24 @@ public class EmployeesController : ControllerBase
         }
     }
 
-    // GET: api/employees/byidentifier/EPF001
+    // ============================================================
+    // GET BY IDENTIFIER (EPFNo, EmployeeNo, AttendanceId)
+    // ============================================================
     [HttpGet("byidentifier/{identifier}")]
     public async Task<ActionResult<ApiResponse<Employee>>> GetEmployeeByIdentifier(string identifier)
     {
         try
         {
+            // ✅ EPFNo is int now — parse the identifier
+            int? epfAsInt = int.TryParse(identifier, out int parsedEpf) ? parsedEpf : (int?)null;
+
             var employee = await _context.Employees
                 .Include(e => e.Qualifications)
                 .Include(e => e.WorkExperiences)
                 .FirstOrDefaultAsync(e => e.IsActive && (
-                    e.EPFNo == identifier ||
+                    (epfAsInt.HasValue && e.EPFNo == epfAsInt.Value) ||
                     e.EmployeeNo == identifier ||
-                    e.AttendanceId == identifier
+                    e.AttendanceId == identifier   // ✅ string comparison
                 ));
 
             if (employee == null)
@@ -164,34 +179,79 @@ public class EmployeesController : ControllerBase
         }
     }
 
+    // ============================================================
+    // GET BY IDENTIFIER + COMPANY
+    // ============================================================
+    [HttpGet("byidentifier/{identifier}/{companyId}")]
+    public async Task<ActionResult<ApiResponse<Employee>>> GetEmployeeByIdentifierAndCompany(string identifier, int companyId)
+    {
+        try
+        {
+            _logger.LogInformation($"Searching employee with identifier: {identifier} in company: {companyId}");
+
+            int? epfAsInt = int.TryParse(identifier, out int parsedEpf) ? parsedEpf : (int?)null;
+
+            var employee = await _context.Employees
+                .Include(e => e.Qualifications)
+                .Include(e => e.WorkExperiences)
+                .FirstOrDefaultAsync(e => e.IsActive && e.CompanyId == companyId && (
+                    (epfAsInt.HasValue && e.EPFNo == epfAsInt.Value) ||
+                    e.EmployeeNo == identifier ||
+                    e.AttendanceId == identifier
+                ));
+
+            if (employee == null)
+            {
+                _logger.LogWarning($"Employee not found with identifier: {identifier} in company: {companyId}");
+                return NotFound(new ApiResponse<Employee>
+                {
+                    Success = false,
+                    Message = $"Employee with identifier {identifier} not found in selected company"
+                });
+            }
+
+            return Ok(new ApiResponse<Employee> { Success = true, Data = employee });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, $"Error getting employee with identifier: {identifier} in company: {companyId}");
+            return StatusCode(500, new ApiResponse<Employee>
+            {
+                Success = false,
+                Message = "Internal server error"
+            });
+        }
+    }
+
+    // ============================================================
+    // CREATE
+    // ============================================================
     [HttpPost]
     public async Task<ActionResult<ApiResponse<Employee>>> CreateEmployee(Employee employee)
     {
         using var transaction = await _context.Database.BeginTransactionAsync();
-
+        employee.CreatedBy = GetCurrentUser();
+        employee.ModifiedBy = GetCurrentUser();
         try
         {
-            // Sanitize data first - set defaults for all fields
             SanitizeEmployeeData(employee);
 
-            // Validate required fields including new fields
             var validationResult = ValidateEmployee(employee);
             if (!validationResult.IsValid)
                 return BadRequest(new ApiResponse<Employee> { Success = false, Message = validationResult.ErrorMessage });
 
-            // Check for duplicates
-            if (employee.EPFNo != "0")
+            // EPFNo is int now — comparing to 0
+            if (employee.EPFNo != 0)
             {
                 if (await _context.Employees.AnyAsync(e => e.EPFNo == employee.EPFNo && e.CompanyId == employee.CompanyId && e.IsActive))
                     return Conflict(new ApiResponse<Employee> { Success = false, Message = "Employee with this EPF number already exists in this company" });
             }
-            if (employee.EmployeeNo != "0")
+            if (!string.IsNullOrWhiteSpace(employee.EmployeeNo) && employee.EmployeeNo != "0")
             {
                 if (await _context.Employees.AnyAsync(e => e.EmployeeNo == employee.EmployeeNo && e.CompanyId == employee.CompanyId && e.IsActive))
                     return Conflict(new ApiResponse<Employee> { Success = false, Message = "Employee with this employee number already exists in this company" });
             }
 
-            // Store related entities temporarily and clear them
             var qualifications = employee.Qualifications?.ToList();
             var workExperiences = employee.WorkExperiences?.ToList();
             var leaveApprovers = employee.LeaveCustomApprovers?.ToList();
@@ -200,13 +260,11 @@ public class EmployeesController : ControllerBase
             employee.Qualifications = new List<Qualification>();
             employee.WorkExperiences = new List<WorkExperience>();
             employee.LeaveCustomApprovers = new List<LeaveCustomApprover>();
-            employee.FinanceCustomApprovers = new List<FinanceCustomApprover>();
+            employee.FinanceCustomApprovers = new List<FinanceCustomApprovers>();
 
-            // Create employee first
             _context.Employees.Add(employee);
             await _context.SaveChangesAsync();
 
-            // Add qualifications after employee is created
             if (qualifications?.Any() == true)
             {
                 foreach (var qualification in qualifications)
@@ -219,7 +277,6 @@ public class EmployeesController : ControllerBase
                 await _context.SaveChangesAsync();
             }
 
-            // Add work experiences after employee is created
             if (workExperiences?.Any() == true)
             {
                 foreach (var experience in workExperiences)
@@ -232,7 +289,6 @@ public class EmployeesController : ControllerBase
                 await _context.SaveChangesAsync();
             }
 
-            // Add leave custom approvers
             if (leaveApprovers?.Any() == true)
             {
                 foreach (var approver in leaveApprovers)
@@ -246,7 +302,6 @@ public class EmployeesController : ControllerBase
                 await _context.SaveChangesAsync();
             }
 
-            // Add finance custom approvers
             if (financeApprovers?.Any() == true)
             {
                 foreach (var approver in financeApprovers)
@@ -262,10 +317,9 @@ public class EmployeesController : ControllerBase
 
             await transaction.CommitAsync();
 
-            // Log initial salary
             await LogBasicSalaryChange(employee.Id, null, employee.BasicSalary, employee.ModifiedBy);
+            await LogEmployeeOperation(employee.Id, "CREATE", "API", employee);
 
-            // Reload employee with related entities
             var createdEmployee = await _context.Employees
                 .Include(e => e.Qualifications)
                 .Include(e => e.WorkExperiences)
@@ -284,18 +338,19 @@ public class EmployeesController : ControllerBase
         }
     }
 
-    // PUT: api/employees/5
+    // ============================================================
+    // UPDATE
+    // ============================================================
     [HttpPut("{id}")]
     public async Task<ActionResult<ApiResponse<Employee>>> UpdateEmployee(int id, Employee employee)
     {
         using var transaction = await _context.Database.BeginTransactionAsync();
-
+        employee.ModifiedBy = GetCurrentUser();
         try
         {
             if (id != employee.Id)
                 return BadRequest(new ApiResponse<Employee> { Success = false, Message = "ID mismatch" });
 
-            // Get existing employee WITHOUT tracking
             var existingEmployee = await _context.Employees
                 .AsNoTracking()
                 .Include(e => e.Qualifications)
@@ -307,52 +362,45 @@ public class EmployeesController : ControllerBase
             if (existingEmployee == null)
                 return NotFound(new ApiResponse<Employee> { Success = false, Message = "Employee not found" });
 
-            // Sanitize the updated data
+            var oldEmployeeData = CaptureEmployeeData(existingEmployee);
+
             SanitizeEmployeeData(employee);
 
-            // Validate required fields including new fields
             var validationResult = ValidateEmployee(employee);
             if (!validationResult.IsValid)
                 return BadRequest(new ApiResponse<Employee> { Success = false, Message = validationResult.ErrorMessage });
 
-            // Check for duplicates (excluding current employee)
             if (await _context.Employees.AnyAsync(e => e.EPFNo == employee.EPFNo && e.CompanyId == employee.CompanyId && e.Id != id && e.IsActive))
                 return Conflict(new ApiResponse<Employee> { Success = false, Message = "Another employee with this EPF number already exists in this company" });
 
-            if (await _context.Employees.AnyAsync(e => e.EmployeeNo == employee.EmployeeNo && e.CompanyId == employee.CompanyId && e.Id != id && e.IsActive))
-                return Conflict(new ApiResponse<Employee> { Success = false, Message = "Another employee with this employee number already exists in this company" });
+            if (!string.IsNullOrWhiteSpace(employee.EmployeeNo) && employee.EmployeeNo != "0")
+            {
+                if (await _context.Employees.AnyAsync(e => e.EmployeeNo == employee.EmployeeNo && e.CompanyId == employee.CompanyId && e.Id != id && e.IsActive))
+                    return Conflict(new ApiResponse<Employee> { Success = false, Message = "Another employee with this employee number already exists in this company" });
+            }
 
-            // Track changes for audit
             await TrackChangesForAudit(existingEmployee, employee);
 
-            // Update main employee properties
             employee.ModifiedDate = DateTime.UtcNow;
             employee.IsActive = true;
 
-            // Store related entities temporarily
             var qualifications = employee.Qualifications?.ToList();
             var workExperiences = employee.WorkExperiences?.ToList();
             var leaveApprovers = employee.LeaveCustomApprovers?.ToList();
             var financeApprovers = employee.FinanceCustomApprovers?.ToList();
 
-            // Clear navigation properties before update
             employee.Qualifications = null;
             employee.WorkExperiences = null;
             employee.LeaveCustomApprovers = null;
             employee.FinanceCustomApprovers = null;
 
-            // Update the employee
             _context.Employees.Update(employee);
             await _context.SaveChangesAsync();
 
-            // Handle qualifications separately
             if (qualifications?.Any() == true)
             {
-                var existingQuals = await _context.Qualifications
-                    .Where(q => q.EmployeeId == id)
-                    .ToListAsync();
+                var existingQuals = await _context.Qualifications.Where(q => q.EmployeeId == id).ToListAsync();
                 _context.Qualifications.RemoveRange(existingQuals);
-
                 foreach (var qual in qualifications)
                 {
                     qual.Id = 0;
@@ -363,14 +411,10 @@ public class EmployeesController : ControllerBase
                 await _context.SaveChangesAsync();
             }
 
-            // Handle work experiences separately
             if (workExperiences?.Any() == true)
             {
-                var existingExps = await _context.WorkExperiences
-                    .Where(w => w.EmployeeId == id)
-                    .ToListAsync();
+                var existingExps = await _context.WorkExperiences.Where(w => w.EmployeeId == id).ToListAsync();
                 _context.WorkExperiences.RemoveRange(existingExps);
-
                 foreach (var exp in workExperiences)
                 {
                     exp.Id = 0;
@@ -381,14 +425,10 @@ public class EmployeesController : ControllerBase
                 await _context.SaveChangesAsync();
             }
 
-            // Handle leave custom approvers
             if (leaveApprovers?.Any() == true)
             {
-                var existingLeaveApprovers = await _context.LeaveCustomApprovers
-                    .Where(l => l.EmployeeId == id)
-                    .ToListAsync();
+                var existingLeaveApprovers = await _context.LeaveCustomApprovers.Where(l => l.EmployeeId == id).ToListAsync();
                 _context.LeaveCustomApprovers.RemoveRange(existingLeaveApprovers);
-
                 foreach (var approver in leaveApprovers)
                 {
                     approver.Id = 0;
@@ -400,14 +440,10 @@ public class EmployeesController : ControllerBase
                 await _context.SaveChangesAsync();
             }
 
-            // Handle finance custom approvers
             if (financeApprovers?.Any() == true)
             {
-                var existingFinanceApprovers = await _context.FinanceCustomApprovers
-                    .Where(f => f.EmployeeId == id)
-                    .ToListAsync();
+                var existingFinanceApprovers = await _context.FinanceCustomApprovers.Where(f => f.EmployeeId == id).ToListAsync();
                 _context.FinanceCustomApprovers.RemoveRange(existingFinanceApprovers);
-
                 foreach (var approver in financeApprovers)
                 {
                     approver.Id = 0;
@@ -421,7 +457,13 @@ public class EmployeesController : ControllerBase
 
             await transaction.CommitAsync();
 
-            // Reload the complete employee with related data
+            var auditData = new
+            {
+                OldValues = oldEmployeeData,
+                NewValues = CaptureEmployeeData(employee)
+            };
+            await LogEmployeeOperation(id, "UPDATE", "API", auditData);
+
             var updatedEmployee = await _context.Employees
                 .Include(e => e.Qualifications)
                 .Include(e => e.WorkExperiences)
@@ -439,7 +481,9 @@ public class EmployeesController : ControllerBase
         }
     }
 
-
+    // ============================================================
+    // DELETE
+    // ============================================================
     [HttpDelete("byempno/{empNo}/{companyId}")]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteEmployeeByEmpNoAndCompany(string empNo, int companyId)
     {
@@ -455,27 +499,22 @@ public class EmployeesController : ControllerBase
                     Message = $"Employee with Employee No {empNo} not found in company"
                 });
 
+            var employeeData = CaptureEmployeeData(employee);
+            string modifiedBy = GetCurrentUser();
+
             employee.IsActive = false;
             employee.ModifiedDate = DateTime.UtcNow;
-            employee.ModifiedBy = "System"; // or get from auth context
+            employee.ModifiedBy = modifiedBy;
 
             await _context.SaveChangesAsync();
+            await LogEmployeeOperation(employee.Id, "DELETE", "API", employeeData);
 
-            return Ok(new ApiResponse<bool>
-            {
-                Success = true,
-                Message = "Employee deleted successfully",
-                Data = true
-            });
+            return Ok(new ApiResponse<bool> { Success = true, Message = "Employee deleted successfully", Data = true });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error deleting employee by Employee No and company");
-            return StatusCode(500, new ApiResponse<bool>
-            {
-                Success = false,
-                Message = "Internal server error"
-            });
+            return StatusCode(500, new ApiResponse<bool> { Success = false, Message = "Internal server error" });
         }
     }
 
@@ -484,8 +523,12 @@ public class EmployeesController : ControllerBase
     {
         try
         {
+            // ✅ EPFNo is int now
+            if (!int.TryParse(epfNo, out int epfInt))
+                return BadRequest(new ApiResponse<bool> { Success = false, Message = "Invalid EPF number format" });
+
             var employee = await _context.Employees
-                .FirstOrDefaultAsync(e => e.EPFNo == epfNo && e.CompanyId == companyId && e.IsActive);
+                .FirstOrDefaultAsync(e => e.EPFNo == epfInt && e.CompanyId == companyId && e.IsActive);
 
             if (employee == null)
                 return NotFound(new ApiResponse<bool>
@@ -494,48 +537,44 @@ public class EmployeesController : ControllerBase
                     Message = $"Employee with EPF {epfNo} not found in company"
                 });
 
+            var employeeData = CaptureEmployeeData(employee);
+            string modifiedBy = GetCurrentUser();
+
             employee.IsActive = false;
             employee.ModifiedDate = DateTime.UtcNow;
-            employee.ModifiedBy = "System"; // or get from auth context
+            employee.ModifiedBy = modifiedBy;
 
             await _context.SaveChangesAsync();
+            await LogEmployeeOperation(employee.Id, "DELETE", "API", employeeData);
 
-            return Ok(new ApiResponse<bool>
-            {
-                Success = true,
-                Message = "Employee deleted successfully",
-                Data = true
-            });
+            return Ok(new ApiResponse<bool> { Success = true, Message = "Employee deleted successfully", Data = true });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error deleting employee by EPF and company");
-            return StatusCode(500, new ApiResponse<bool>
-            {
-                Success = false,
-                Message = "Internal server error"
-            });
+            return StatusCode(500, new ApiResponse<bool> { Success = false, Message = "Internal server error" });
         }
     }
 
-    // Add these methods to your existing EmployeesController
-
-    // GET: api/employees/byepf-dto/{epfNo}/{companyId}
+    // ============================================================
+    // GET BY EPF + COMPANY (DTO)
+    // ============================================================
     [HttpGet("byepf/{epfNo}/{companyId}")]
     public async Task<ActionResult<ApiResponse<EmployeeResponseDto>>> GetEmployeeByEPFAndCompanyWithDto(string epfNo, int companyId)
     {
         try
         {
+            if (!int.TryParse(epfNo, out int epfInt))
+                return BadRequest(new ApiResponse<EmployeeResponseDto> { Success = false, Message = "Invalid EPF number format" });
+
             _logger.LogInformation($"Searching employee with EPF: {epfNo} in company: {companyId}");
 
             var employee = await _context.Employees
                 .Include(e => e.Qualifications)
                 .Include(e => e.WorkExperiences)
-                .Include(e => e.LeaveCustomApprovers)
-                    .ThenInclude(la => la.ApproverEmployee)
-                .Include(e => e.FinanceCustomApprovers)
-                    .ThenInclude(fa => fa.ApproverEmployee)
-                .FirstOrDefaultAsync(e => e.EPFNo == epfNo && e.CompanyId == companyId && e.IsActive);
+                .Include(e => e.LeaveCustomApprovers).ThenInclude(la => la.ApproverEmployee)
+                .Include(e => e.FinanceCustomApprovers).ThenInclude(fa => fa.ApproverEmployee)
+                .FirstOrDefaultAsync(e => e.EPFNo == epfInt && e.CompanyId == companyId && e.IsActive);
 
             if (employee == null)
             {
@@ -547,24 +586,19 @@ public class EmployeesController : ControllerBase
                 });
             }
 
-            // Map to DTO
             var employeeDto = MapEmployeeToDto(employee);
-
-            _logger.LogInformation($"Found employee: {employee.FirstName} {employee.LastName} (ID: {employee.Id})");
             return Ok(new ApiResponse<EmployeeResponseDto> { Success = true, Data = employeeDto });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, $"Error getting employee with EPF: {epfNo} in company: {companyId}");
-            return StatusCode(500, new ApiResponse<EmployeeResponseDto>
-            {
-                Success = false,
-                Message = "Internal server error"
-            });
+            return StatusCode(500, new ApiResponse<EmployeeResponseDto> { Success = false, Message = "Internal server error" });
         }
     }
 
-    // GET: api/employees/byempno-dto/{empNo}/{companyId}
+    // ============================================================
+    // GET BY EMPNO + COMPANY (DTO)
+    // ============================================================
     [HttpGet("byempno/{empNo}/{companyId}")]
     public async Task<ActionResult<ApiResponse<EmployeeResponseDto>>> GetEmployeeByEmpNoAndCompanyWithDto(string empNo, int companyId)
     {
@@ -575,10 +609,8 @@ public class EmployeesController : ControllerBase
             var employee = await _context.Employees
                 .Include(e => e.Qualifications)
                 .Include(e => e.WorkExperiences)
-                .Include(e => e.LeaveCustomApprovers)
-                    .ThenInclude(la => la.ApproverEmployee)
-                .Include(e => e.FinanceCustomApprovers)
-                    .ThenInclude(fa => fa.ApproverEmployee)
+                .Include(e => e.LeaveCustomApprovers).ThenInclude(la => la.ApproverEmployee)
+                .Include(e => e.FinanceCustomApprovers).ThenInclude(fa => fa.ApproverEmployee)
                 .FirstOrDefaultAsync(e => e.EmployeeNo == empNo && e.CompanyId == companyId && e.IsActive);
 
             if (employee == null)
@@ -591,24 +623,19 @@ public class EmployeesController : ControllerBase
                 });
             }
 
-            // Map to DTO
             var employeeDto = MapEmployeeToDto(employee);
-
-            _logger.LogInformation($"Found employee: {employee.FirstName} {employee.LastName} (ID: {employee.Id})");
             return Ok(new ApiResponse<EmployeeResponseDto> { Success = true, Data = employeeDto });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, $"Error getting employee with Employee No: {empNo} in company: {companyId}");
-            return StatusCode(500, new ApiResponse<EmployeeResponseDto>
-            {
-                Success = false,
-                Message = "Internal server error"
-            });
+            return StatusCode(500, new ApiResponse<EmployeeResponseDto> { Success = false, Message = "Internal server error" });
         }
     }
 
-    // GET: api/employees/{id}/dto
+    // ============================================================
+    // GET BY ID (DTO)
+    // ============================================================
     [HttpGet("{id}/dto")]
     public async Task<ActionResult<ApiResponse<EmployeeResponseDto>>> GetEmployeeWithDto(int id)
     {
@@ -617,81 +644,26 @@ public class EmployeesController : ControllerBase
             var employee = await _context.Employees
                 .Include(e => e.Qualifications)
                 .Include(e => e.WorkExperiences)
-                .Include(e => e.LeaveCustomApprovers)
-                    .ThenInclude(la => la.ApproverEmployee)
-                .Include(e => e.FinanceCustomApprovers)
-                    .ThenInclude(fa => fa.ApproverEmployee)
+                .Include(e => e.LeaveCustomApprovers).ThenInclude(la => la.ApproverEmployee)
+                .Include(e => e.FinanceCustomApprovers).ThenInclude(fa => fa.ApproverEmployee)
                 .FirstOrDefaultAsync(e => e.Id == id && e.IsActive);
 
             if (employee == null)
-                return NotFound(new ApiResponse<EmployeeResponseDto>
-                {
-                    Success = false,
-                    Message = "Employee not found"
-                });
+                return NotFound(new ApiResponse<EmployeeResponseDto> { Success = false, Message = "Employee not found" });
 
-            // Map to DTO
             var employeeDto = MapEmployeeToDto(employee);
-
-            return Ok(new ApiResponse<EmployeeResponseDto>
-            {
-                Success = true,
-                Data = employeeDto
-            });
+            return Ok(new ApiResponse<EmployeeResponseDto> { Success = true, Data = employeeDto });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting employee with DTO");
-            return StatusCode(500, new ApiResponse<EmployeeResponseDto>
-            {
-                Success = false,
-                Message = "Internal server error"
-            });
+            return StatusCode(500, new ApiResponse<EmployeeResponseDto> { Success = false, Message = "Internal server error" });
         }
     }
 
-    #region Private Methods
-
-    [HttpGet("byidentifier/{identifier}/{companyId}")]
-    public async Task<ActionResult<ApiResponse<Employee>>> GetEmployeeByIdentifierAndCompany(string identifier, int companyId)
-    {
-        try
-        {
-            _logger.LogInformation($"Searching employee with identifier: {identifier} in company: {companyId}");
-
-            var employee = await _context.Employees
-                .Include(e => e.Qualifications)
-                .Include(e => e.WorkExperiences)
-                .FirstOrDefaultAsync(e => e.IsActive && e.CompanyId == companyId && (
-                    e.EPFNo == identifier ||
-                    e.EmployeeNo == identifier ||
-                    e.AttendanceId == identifier
-                ));
-
-            if (employee == null)
-            {
-                _logger.LogWarning($"Employee not found with identifier: {identifier} in company: {companyId}");
-                return NotFound(new ApiResponse<Employee>
-                {
-                    Success = false,
-                    Message = $"Employee with identifier {identifier} not found in selected company"
-                });
-            }
-
-            _logger.LogInformation($"Found employee: {employee.FirstName} {employee.LastName} (ID: {employee.Id})");
-            return Ok(new ApiResponse<Employee> { Success = true, Data = employee });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, $"Error getting employee with identifier: {identifier} in company: {companyId}");
-            return StatusCode(500, new ApiResponse<Employee>
-            {
-                Success = false,
-                Message = "Internal server error"
-            });
-        }
-    }
-
+    // ============================================================
+    // GET APPROVERS
+    // ============================================================
     [HttpGet("approvers/{companyId}")]
     public async Task<ActionResult<ApiResponse<List<EmployeeApproverDto>>>> GetApprovers(int companyId)
     {
@@ -701,20 +673,20 @@ public class EmployeesController : ControllerBase
                 .Where(e => e.IsActive &&
                         e.CompanyId == companyId &&
                         (e.RoleType == "Section Head" ||
-                            e.RoleType == "HR Admin" ||
-                            e.RoleType == "HR Assistant" ||
-                            e.RoleType == "Finance Admin" ||
-                            e.RoleType == "Finance Assistant" ||
-                            e.RoleType == "Super Admin"))
-                .OrderBy(e => e.FirstName + " " + e.LastName) // Order before projection
+                         e.RoleType == "HR Admin" ||
+                         e.RoleType == "HR Assistant" ||
+                         e.RoleType == "Finance Admin" ||
+                         e.RoleType == "Finance Assistant" ||
+                         e.RoleType == "Super Admin"))
+                .OrderBy(e => e.FirstName + " " + e.LastName)
                 .Select(e => new EmployeeApproverDto
                 {
                     Id = e.Id,
-                    EmployeeNo = e.EmployeeNo,
-                    EPFNo = e.EPFNo,
-                    FullName = $"{e.FirstName} {e.LastName}",
-                    RoleType = e.RoleType,
-                    SystemName = e.SystemName
+                    EmployeeNo = e.EmployeeNo ?? string.Empty,
+                    EPFNo = e.EPFNo.ToString(),   // ✅ int → string
+                    FullName = e.FirstName + " " + e.LastName,
+                    RoleType = e.RoleType ?? string.Empty,
+                    SystemName = e.SystemName ?? string.Empty
                 })
                 .ToListAsync();
 
@@ -728,26 +700,23 @@ public class EmployeesController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting approvers");
-            return StatusCode(500, new ApiResponse<List<EmployeeApproverDto>>
-            {
-                Success = false,
-                Message = "Internal server error"
-            });
+            return StatusCode(500, new ApiResponse<List<EmployeeApproverDto>> { Success = false, Message = "Internal server error" });
         }
     }
-
-
 
     public class EmployeeApproverDto
     {
         public int Id { get; set; }
-        public string EmployeeNo { get; set; }
-        public string EPFNo { get; set; }
-        public string FullName { get; set; }
-        public string RoleType { get; set; }
-        public string SystemName { get; set; }
-
+        public string EmployeeNo { get; set; } = string.Empty;
+        public string EPFNo { get; set; } = string.Empty;
+        public string FullName { get; set; } = string.Empty;
+        public string RoleType { get; set; } = string.Empty;
+        public string SystemName { get; set; } = string.Empty;
     }
+
+    // ============================================================
+    // PRIVATE HELPERS
+    // ============================================================
     private void SanitizeQualificationData(Qualification qualification)
     {
         qualification.QualificationName = qualification.QualificationName ?? string.Empty;
@@ -755,26 +724,147 @@ public class EmployeesController : ControllerBase
         qualification.Month = qualification.Month ?? string.Empty;
         qualification.Description = qualification.Description ?? string.Empty;
 
-        // Check for default DateTime value
         if (qualification.CreatedDate == default(DateTime))
             qualification.CreatedDate = DateTime.UtcNow;
     }
 
-    // Add this method to your existing private methods region
+    private string GetCurrentUser()
+    {
+        try
+        {
+            if (HttpContext?.User?.Identity?.IsAuthenticated == true)
+            {
+                var userName = HttpContext.User.Identity.Name;
+                if (string.IsNullOrEmpty(userName))
+                    userName = HttpContext.User.FindFirst("name")?.Value;
+                if (string.IsNullOrEmpty(userName))
+                    userName = HttpContext.User.FindFirst("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name")?.Value;
+                if (string.IsNullOrEmpty(userName))
+                    userName = HttpContext.User.FindFirst("email")?.Value;
+                if (string.IsNullOrEmpty(userName))
+                    userName = HttpContext.User.FindFirst("preferred_username")?.Value;
+                if (string.IsNullOrEmpty(userName))
+                    userName = HttpContext.User.FindFirst("sub")?.Value;
+
+                if (!string.IsNullOrEmpty(userName))
+                    return userName;
+            }
+
+            if (Request?.Headers?.ContainsKey("Authorization") == true)
+            {
+                var authHeader = Request.Headers["Authorization"].ToString();
+                if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer "))
+                {
+                    var token = authHeader.Substring(7);
+                    try
+                    {
+                        var handler = new JwtSecurityTokenHandler();
+                        var jsonToken = handler.ReadJwtToken(token);
+
+                        var userName = jsonToken.Claims.FirstOrDefault(c => c.Type == "name")?.Value;
+                        if (string.IsNullOrEmpty(userName))
+                            userName = jsonToken.Claims.FirstOrDefault(c => c.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name")?.Value;
+                        if (string.IsNullOrEmpty(userName))
+                            userName = jsonToken.Claims.FirstOrDefault(c => c.Type == "email")?.Value;
+                        if (string.IsNullOrEmpty(userName))
+                            userName = jsonToken.Claims.FirstOrDefault(c => c.Type == "preferred_username")?.Value;
+                        if (string.IsNullOrEmpty(userName))
+                            userName = jsonToken.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
+                        if (string.IsNullOrEmpty(userName))
+                            userName = jsonToken.Claims.FirstOrDefault(c => c.Type == "unique_name")?.Value;
+
+                        if (!string.IsNullOrEmpty(userName))
+                        {
+                            _logger.LogInformation($"Extracted user '{userName}' from JWT token");
+                            return userName;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning($"Failed to decode JWT token: {ex.Message}");
+                    }
+                }
+            }
+
+            if (Request?.Headers?.ContainsKey("X-User-Id") == true)
+                return Request.Headers["X-User-Id"].ToString();
+            if (Request?.Headers?.ContainsKey("X-Username") == true)
+                return Request.Headers["X-Username"].ToString();
+
+            _logger.LogWarning("User is not authenticated.");
+            return "System";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting current user");
+            return "System";
+        }
+    }
+
+    private async Task LogEmployeeOperation(int employeeId, string operation, string source, object data)
+    {
+        try
+        {
+            if (employeeId <= 0)
+            {
+                _logger.LogWarning($"Cannot log operation for employee with invalid ID: {employeeId}");
+                return;
+            }
+
+            var log = new EmployeeAuditLog
+            {
+                EmployeeId = employeeId,
+                Operation = operation,
+                Source = source,
+                PerformedBy = User.Identity?.Name ?? "System",
+                PerformedDate = DateTime.UtcNow,
+                RowData = JsonSerializer.Serialize(data)
+            };
+
+            _context.EmployeeAuditLogs.Add(log);
+            await _context.SaveChangesAsync();
+            _logger.LogInformation($"Logged {operation} for employee {employeeId}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, $"Error logging employee operation for employee {employeeId}");
+        }
+    }
+
+    private Dictionary<string, object> CaptureEmployeeData(Employee employee)
+    {
+        return new Dictionary<string, object>
+        {
+            ["Id"] = employee.Id,
+            ["EmployeeNo"] = employee.EmployeeNo ?? string.Empty,
+            ["EPFNo"] = employee.EPFNo,                              // int
+            ["AttendanceId"] = employee.AttendanceId ?? string.Empty, // string?
+            ["FirstName"] = employee.FirstName ?? string.Empty,
+            ["LastName"] = employee.LastName ?? string.Empty,
+            ["SystemName"] = employee.SystemName ?? string.Empty,
+            ["NIC"] = employee.NIC ?? string.Empty,
+            ["DesignationId"] = employee.DesignationId,
+            ["DepartmentId"] = employee.DepartmentId,
+            ["ShiftBlockId"] = employee.ShiftBlockId,
+            ["BasicSalary"] = employee.BasicSalary,
+            ["IsActive"] = employee.IsActive,
+            ["RoleType"] = employee.RoleType ?? string.Empty,
+            ["Mobile"] = employee.Mobile ?? string.Empty
+        };
+    }
+
     private EmployeeResponseDto MapEmployeeToDto(Employee employee)
     {
-        if (employee == null) return null;
+        if (employee == null) return null!;
 
         return new EmployeeResponseDto
         {
-            // Basic Information
             Id = employee.Id,
             EmployeeNo = employee.EmployeeNo ?? string.Empty,
-            EPFNo = employee.EPFNo ?? string.Empty,
-            AttendanceId = employee.AttendanceId ?? string.Empty,
+            EPFNo = employee.EPFNo.ToString(),                              // int → string
+            AttendanceId = employee.AttendanceId ?? string.Empty,           // already string?
             CompanyId = employee.CompanyId,
 
-            // Personal Information
             Title = employee.Title ?? string.Empty,
             Initial = employee.Initial ?? string.Empty,
             FirstName = employee.FirstName ?? string.Empty,
@@ -795,20 +885,17 @@ public class EmployeesController : ControllerBase
             ResidentialAddress = employee.ResidentialAddress ?? string.Empty,
             PermanentAddress = employee.PermanentAddress ?? string.Empty,
 
-            // New fields
             OccupationNo = employee.OccupationNo,
             OccupationGrade = employee.OccupationGrade,
             RoleType = employee.RoleType ?? "Standard Employee",
             LeaveApproval = employee.LeaveApproval ?? "Super Admin",
             FinanceApproval = employee.FinanceApproval ?? "Super Admin",
 
-            // Employment Information
             DesignationId = employee.DesignationId,
             DepartmentId = employee.DepartmentId,
             ShiftBlockId = employee.ShiftBlockId,
             DateOfAppointment = employee.DateOfAppointment,
 
-            // Salary Information
             BasicSalary = employee.BasicSalary,
             BudgetaryAllowance = employee.BudgetaryAllowance,
             BudgetaryAllowance2 = employee.BudgetaryAllowance2,
@@ -823,7 +910,6 @@ public class EmployeesController : ControllerBase
             PerformanceAllowance = employee.PerformanceAllowance,
             HealthAllowance = employee.HealthAllowance,
 
-            // EPF and Bank Information
             EPFPay = employee.EPFPay,
             SalaryPayType = employee.SalaryPayType ?? "CashPay",
             AccountNumber = employee.AccountNumber ?? string.Empty,
@@ -833,7 +919,6 @@ public class EmployeesController : ControllerBase
             BranchCode = employee.BranchCode ?? string.Empty,
             BranchName = employee.BranchName ?? string.Empty,
 
-            // Status Information
             Probation = employee.Probation,
             ProbationPeriod = employee.ProbationPeriod,
             ProbationEndDate = employee.ProbationEndDate,
@@ -851,7 +936,6 @@ public class EmployeesController : ControllerBase
             ExitRemark = employee.ExitRemark ?? string.Empty,
             BlockAttendance = employee.BlockAttendance,
 
-            // Emergency Contacts
             Keen1ContactName = employee.Keen1ContactName ?? string.Empty,
             Keen1ContactNumber = employee.Keen1ContactNumber ?? string.Empty,
             Keen1Relationship = employee.Keen1Relationship ?? string.Empty,
@@ -868,17 +952,14 @@ public class EmployeesController : ControllerBase
             Keen2WorkPlace = employee.Keen2WorkPlace ?? string.Empty,
             Keen2WorkPlaceContact = employee.Keen2WorkPlaceContact ?? string.Empty,
 
-            // Profile
             ProfileImage = employee.ProfileImage ?? string.Empty,
             IsActive = employee.IsActive,
 
-            // Audit Fields
             CreatedBy = employee.CreatedBy ?? string.Empty,
             CreatedDate = employee.CreatedDate,
             ModifiedBy = employee.ModifiedBy ?? string.Empty,
             ModifiedDate = employee.ModifiedDate,
 
-            // Navigation properties (keep your existing mapping for these)
             Qualifications = employee.Qualifications?.Select(q => new QualificationDto
             {
                 Id = q.Id,
@@ -914,7 +995,7 @@ public class EmployeesController : ControllerBase
                 {
                     Id = l.ApproverEmployee.Id,
                     EmployeeNo = l.ApproverEmployee.EmployeeNo ?? string.Empty,
-                    EPFNo = l.ApproverEmployee.EPFNo ?? string.Empty,
+                    EPFNo = l.ApproverEmployee.EPFNo.ToString(),
                     FirstName = l.ApproverEmployee.FirstName ?? string.Empty,
                     LastName = l.ApproverEmployee.LastName ?? string.Empty,
                     SystemName = l.ApproverEmployee.SystemName ?? string.Empty
@@ -928,13 +1009,13 @@ public class EmployeesController : ControllerBase
                 ApproverEmployeeId = f.ApproverEmployeeId,
                 CompanyId = f.CompanyId,
                 CreatedBy = f.CreatedBy ?? string.Empty,
-                CreatedDate = f.CreatedDate,
-                IsActive = f.IsActive,
+                CreatedDate = (DateTime)f.CreatedDate,
+                IsActive = (bool)f.IsActive,
                 ApproverEmployee = f.ApproverEmployee == null ? null : new ApproverEmployeeDto
                 {
                     Id = f.ApproverEmployee.Id,
                     EmployeeNo = f.ApproverEmployee.EmployeeNo ?? string.Empty,
-                    EPFNo = f.ApproverEmployee.EPFNo ?? string.Empty,
+                    EPFNo = f.ApproverEmployee.EPFNo.ToString(),
                     FirstName = f.ApproverEmployee.FirstName ?? string.Empty,
                     LastName = f.ApproverEmployee.LastName ?? string.Empty,
                     SystemName = f.ApproverEmployee.SystemName ?? string.Empty
@@ -951,10 +1032,10 @@ public class EmployeesController : ControllerBase
         workExperience.ToMonth = workExperience.ToMonth ?? string.Empty;
         workExperience.Description = workExperience.Description ?? string.Empty;
 
-        // Check for default DateTime value
         if (workExperience.CreatedDate == default(DateTime))
             workExperience.CreatedDate = DateTime.UtcNow;
     }
+
     private (bool IsValid, string ErrorMessage) ValidateEmployee(Employee employee)
     {
         if (string.IsNullOrWhiteSpace(employee.FirstName))
@@ -968,7 +1049,7 @@ public class EmployeesController : ControllerBase
 
         if (employee.EPFPay)
         {
-            if (string.IsNullOrWhiteSpace(employee.EPFNo))
+            if (employee.EPFNo <= 0)
                 return (false, "EPF number is required when EPF Pay is enabled");
 
             if (string.IsNullOrWhiteSpace(employee.EmployeeNo))
@@ -982,13 +1063,13 @@ public class EmployeesController : ControllerBase
         }
         else
         {
-            // When EPF Pay is not checked, generate default values
             if (string.IsNullOrWhiteSpace(employee.EmployeeNo))
-                employee.EmployeeNo = "0"; // Your logic to generate employee number
+                employee.EmployeeNo = "0";
 
-            if (string.IsNullOrWhiteSpace(employee.EPFNo))
-                employee.EPFNo = "0"; // Or generate a default EPF number
+            if (employee.EPFNo < 0)
+                employee.EPFNo = 0;
         }
+
         if (employee.CompanyId <= 0)
             return (false, "Company is required");
 
@@ -1004,45 +1085,37 @@ public class EmployeesController : ControllerBase
         if (employee.BasicSalary < 0)
             return (false, "Basic salary must be positive");
 
-        // Validate bank details if Bank Pay is selected
         if (employee.SalaryPayType == "BankPay")
         {
             if (string.IsNullOrWhiteSpace(employee.AccountNumber))
                 return (false, "Account number is required for Bank Pay");
-
             if (string.IsNullOrWhiteSpace(employee.BankAccountName))
                 return (false, "Bank account name is required for Bank Pay");
-
             if (string.IsNullOrWhiteSpace(employee.BankCode))
                 return (false, "Bank code is required for Bank Pay");
-
             if (string.IsNullOrWhiteSpace(employee.BranchCode))
                 return (false, "Branch code is required for Bank Pay");
         }
 
-        // Validate date of birth (must be at least 16 years old)
         if (employee.DOB.HasValue && employee.DOB.Value > DateTime.Today.AddYears(-16))
             return (false, "Employee must be at least 16 years old");
 
-        // Validate date of appointment cannot be in future
         if (employee.DateOfAppointment.HasValue && employee.DateOfAppointment.Value > DateTime.Today)
             return (false, "Date of appointment cannot be in the future");
 
-        // Validate resigned date
         if (employee.Resigned && employee.ResignedDate.HasValue)
         {
             if (employee.ResignedDate.Value > DateTime.Today)
                 return (false, "Resigned date cannot be in the future");
-
             if (employee.DateOfAppointment.HasValue && employee.ResignedDate.Value < employee.DateOfAppointment.Value)
                 return (false, "Resigned date cannot be before appointment date");
         }
 
-        return (true, null);
+        return (true, null!);
     }
+
     private void SanitizeEmployeeData(Employee employee)
     {
-        // Set default values for all string fields to empty string instead of null
         employee.Title = employee.Title ?? string.Empty;
         employee.Initial = employee.Initial ?? string.Empty;
         employee.FirstName = employee.FirstName ?? string.Empty;
@@ -1063,10 +1136,8 @@ public class EmployeesController : ControllerBase
         employee.PermanentAddress = employee.PermanentAddress ?? string.Empty;
         employee.ProfileImage = employee.ProfileImage ?? string.Empty;
         employee.EmployeeNo = employee.EmployeeNo ?? string.Empty;
-        employee.EPFNo = employee.EPFNo ?? string.Empty;
-        employee.AttendanceId = employee.AttendanceId ?? string.Empty;
+        employee.AttendanceId = employee.AttendanceId ?? string.Empty;  // ✅ string?
 
-        // Bank details
         employee.SalaryPayType = employee.SalaryPayType ?? "CashPay";
         employee.AccountNumber = employee.AccountNumber ?? string.Empty;
         employee.BankAccountName = employee.BankAccountName ?? string.Empty;
@@ -1075,7 +1146,6 @@ public class EmployeesController : ControllerBase
         employee.BranchCode = employee.BranchCode ?? string.Empty;
         employee.BranchName = employee.BranchName ?? string.Empty;
 
-        // Status fields
         employee.ReviewedBy = employee.ReviewedBy ?? string.Empty;
         employee.BlockUntil = employee.BlockUntil ?? string.Empty;
         employee.BlockReason = employee.BlockReason ?? string.Empty;
@@ -1084,7 +1154,6 @@ public class EmployeesController : ControllerBase
         employee.ExitReason = employee.ExitReason ?? string.Empty;
         employee.ExitRemark = employee.ExitRemark ?? string.Empty;
 
-        // Emergency contacts
         employee.Keen1ContactName = employee.Keen1ContactName ?? string.Empty;
         employee.Keen1ContactNumber = employee.Keen1ContactNumber ?? string.Empty;
         employee.Keen1Relationship = employee.Keen1Relationship ?? string.Empty;
@@ -1100,59 +1169,29 @@ public class EmployeesController : ControllerBase
         employee.Keen2WorkPlace = employee.Keen2WorkPlace ?? string.Empty;
         employee.Keen2WorkPlaceContact = employee.Keen2WorkPlaceContact ?? string.Empty;
 
-        // Audit fields
         employee.CreatedBy = employee.CreatedBy ?? "System";
         employee.ModifiedBy = employee.ModifiedBy ?? "System";
 
-        // Set default dates - DateTime is non-nullable, so we check for default value
         if (employee.CreatedDate == default(DateTime))
             employee.CreatedDate = DateTime.UtcNow;
 
         employee.ModifiedDate = DateTime.UtcNow;
-
-        // Set default boolean values
-        employee.IsActive = true; // Default to active when creating
-        employee.EPFPay = employee.EPFPay; // Keep existing value
-        employee.Probation = employee.Probation; // Keep existing value
-        employee.Block = employee.Block; // Keep existing value
-        employee.Resigned = employee.Resigned; // Keep existing value
-        employee.BlockAttendance = employee.BlockAttendance; // Keep existing value
-
-        // Set default numeric values
-        employee.BasicSalary = employee.BasicSalary;
-        employee.BudgetaryAllowance = employee.BudgetaryAllowance;
-        employee.BudgetaryAllowance2 = employee.BudgetaryAllowance2;
-        employee.AttendanceAllowance = employee.AttendanceAllowance;
-        employee.FixedAllowance = employee.FixedAllowance;
-        employee.MealAllowance = employee.MealAllowance;
-        employee.SpecialAllowance = employee.SpecialAllowance;
-        employee.TransportAllowance = employee.TransportAllowance;
-        employee.AccommodationAllowance = employee.AccommodationAllowance;
-        employee.FuelAllowance = employee.FuelAllowance;
-        employee.CostOfLivingAllowance = employee.CostOfLivingAllowance;
-        employee.PerformanceAllowance = employee.PerformanceAllowance;
-        employee.HealthAllowance = employee.HealthAllowance;
+        employee.IsActive = true;
     }
+
     private async Task TrackChangesForAudit(Employee existing, Employee updated)
     {
         var changedBy = updated.ModifiedBy ?? "System";
 
-        // Track basic salary changes
         if (existing.BasicSalary != updated.BasicSalary)
-        {
             await LogBasicSalaryChange(existing.Id, existing.BasicSalary, updated.BasicSalary, changedBy);
-        }
 
-        // Track probation/block/resignation changes
         await TrackStatusChanges(existing, updated, changedBy);
-
-        // Track bank details changes
         await TrackBankDetailsChanges(existing, updated, changedBy);
     }
 
     private async Task LogBasicSalaryChange(int employeeId, decimal? oldSalary, decimal? newSalary, string changedBy)
     {
-        // Ensure changedBy is never null
         var changedByValue = changedBy ?? "System";
 
         _context.BasicSalaryHistory.Add(new BasicSalaryHistory
@@ -1160,7 +1199,7 @@ public class EmployeesController : ControllerBase
             EmployeeId = employeeId,
             OldBasicSalary = oldSalary,
             NewBasicSalary = newSalary,
-            ChangedBy = changedByValue, // Use the ensured non-null value
+            ChangedBy = changedByValue,
             ChangedDate = DateTime.UtcNow
         });
         await _context.SaveChangesAsync();
@@ -1170,24 +1209,23 @@ public class EmployeesController : ControllerBase
     {
         var changes = new List<EmployeeStatusHistory>();
 
-        // Define fields to track using ValueTuples
         var fieldsToTrack = new[]
         {
-        (Field: "Probation", Old: existing.Probation.ToString().ToLower(), New: updated.Probation.ToString().ToLower()),
-        (Field: "ProbationPeriod", Old: existing.ProbationPeriod?.ToString() ?? "", New: updated.ProbationPeriod?.ToString() ?? ""),
-        (Field: "ProbationEndDate", Old: existing.ProbationEndDate?.ToString("yyyy-MM-dd") ?? "", New: updated.ProbationEndDate?.ToString("yyyy-MM-dd") ?? ""),
-        (Field: "ReviewedBy", Old: existing.ReviewedBy ?? "", New: updated.ReviewedBy ?? ""),
-        (Field: "Block", Old: existing.Block.ToString().ToLower(), New: updated.Block.ToString().ToLower()),
-        (Field: "BlockUntil", Old: existing.BlockUntil ?? "", New: updated.BlockUntil ?? ""),
-        (Field: "BlockReason", Old: existing.BlockReason ?? "", New: updated.BlockReason ?? ""),
-        (Field: "BlockRemark", Old: existing.BlockRemark ?? "", New: updated.BlockRemark ?? ""),
-        (Field: "Resigned", Old: existing.Resigned.ToString().ToLower(), New: updated.Resigned.ToString().ToLower()),
-        (Field: "ResignedDate", Old: existing.ResignedDate?.ToString("yyyy-MM-dd") ?? "", New: updated.ResignedDate?.ToString("yyyy-MM-dd") ?? ""),
-        (Field: "ExitType", Old: existing.ExitType ?? "", New: updated.ExitType ?? ""),
-        (Field: "ExitReason", Old: existing.ExitReason ?? "", New: updated.ExitReason ?? ""),
-        (Field: "ExitRemark", Old: existing.ExitRemark ?? "", New: updated.ExitRemark ?? ""),
-        (Field: "BlockAttendance", Old: existing.BlockAttendance.ToString().ToLower(), New: updated.BlockAttendance.ToString().ToLower())
-    };
+            (Field: "Probation", Old: existing.Probation.ToString().ToLower(), New: updated.Probation.ToString().ToLower()),
+            (Field: "ProbationPeriod", Old: existing.ProbationPeriod?.ToString() ?? "", New: updated.ProbationPeriod?.ToString() ?? ""),
+            (Field: "ProbationEndDate", Old: existing.ProbationEndDate?.ToString("yyyy-MM-dd") ?? "", New: updated.ProbationEndDate?.ToString("yyyy-MM-dd") ?? ""),
+            (Field: "ReviewedBy", Old: existing.ReviewedBy ?? "", New: updated.ReviewedBy ?? ""),
+            (Field: "Block", Old: existing.Block.ToString().ToLower(), New: updated.Block.ToString().ToLower()),
+            (Field: "BlockUntil", Old: existing.BlockUntil ?? "", New: updated.BlockUntil ?? ""),
+            (Field: "BlockReason", Old: existing.BlockReason ?? "", New: updated.BlockReason ?? ""),
+            (Field: "BlockRemark", Old: existing.BlockRemark ?? "", New: updated.BlockRemark ?? ""),
+            (Field: "Resigned", Old: existing.Resigned.ToString().ToLower(), New: updated.Resigned.ToString().ToLower()),
+            (Field: "ResignedDate", Old: existing.ResignedDate?.ToString("yyyy-MM-dd") ?? "", New: updated.ResignedDate?.ToString("yyyy-MM-dd") ?? ""),
+            (Field: "ExitType", Old: existing.ExitType ?? "", New: updated.ExitType ?? ""),
+            (Field: "ExitReason", Old: existing.ExitReason ?? "", New: updated.ExitReason ?? ""),
+            (Field: "ExitRemark", Old: existing.ExitRemark ?? "", New: updated.ExitRemark ?? ""),
+            (Field: "BlockAttendance", Old: existing.BlockAttendance.ToString().ToLower(), New: updated.BlockAttendance.ToString().ToLower())
+        };
 
         foreach (var field in fieldsToTrack)
         {
@@ -1244,226 +1282,23 @@ public class EmployeesController : ControllerBase
         }
     }
 
-    private void UpdateEmployeeProperties(Employee existing, Employee updated)
+    // ============================================================
+    // DTO CLASSES
+    // ============================================================
+    public class ApiResponse<T>
     {
-        // Personal Data
-        existing.Title = updated.Title;
-        existing.Initial = updated.Initial;
-        existing.FirstName = updated.FirstName;
-        existing.LastName = updated.LastName;
-        existing.SystemName = updated.SystemName;
-        existing.NIC = updated.NIC;
-        existing.DOB = updated.DOB;
-        existing.Gender = updated.Gender;
-        existing.MaritalStatus = updated.MaritalStatus;
-        existing.BloodGroup = updated.BloodGroup;
-        existing.DrivingLicense = updated.DrivingLicense;
-        existing.Religion = updated.Religion;
-        existing.Nationality = updated.Nationality;
-        existing.Race = updated.Race;
-        existing.Mobile = updated.Mobile;
-        existing.LandPhone = updated.LandPhone;
-        existing.ContactNo = updated.ContactNo;
-        existing.ResidentialAddress = updated.ResidentialAddress;
-        existing.PermanentAddress = updated.PermanentAddress;
-        existing.ProfileImage = updated.ProfileImage;
-
-        // Employment Data
-        existing.CompanyId = updated.CompanyId;
-        existing.DesignationId = updated.DesignationId;
-        existing.DepartmentId = updated.DepartmentId;
-        existing.ShiftBlockId = updated.ShiftBlockId;
-        existing.DateOfAppointment = updated.DateOfAppointment;
-        existing.AttendanceId = updated.AttendanceId;
-        existing.EPFPay = updated.EPFPay;
-        existing.EPFNo = updated.EPFNo;
-
-        // Salary Data
-        existing.BasicSalary = updated.BasicSalary;
-        existing.BudgetaryAllowance = updated.BudgetaryAllowance;
-        existing.BudgetaryAllowance2 = updated.BudgetaryAllowance2;
-        existing.AttendanceAllowance = updated.AttendanceAllowance;
-        existing.FixedAllowance = updated.FixedAllowance;
-        existing.MealAllowance = updated.MealAllowance;
-        existing.SpecialAllowance = updated.SpecialAllowance;
-        existing.TransportAllowance = updated.TransportAllowance;
-        existing.AccommodationAllowance = updated.AccommodationAllowance;
-        existing.FuelAllowance = updated.FuelAllowance;
-        existing.CostOfLivingAllowance = updated.CostOfLivingAllowance;
-        existing.PerformanceAllowance = updated.PerformanceAllowance;
-        existing.HealthAllowance = updated.HealthAllowance;
-
-        // Bank Details
-        existing.SalaryPayType = updated.SalaryPayType;
-        existing.AccountNumber = updated.AccountNumber;
-        existing.BankAccountName = updated.BankAccountName;
-        existing.BankCode = updated.BankCode;
-        existing.BankName = updated.BankName;
-        existing.BranchCode = updated.BranchCode;
-        existing.BranchName = updated.BranchName;
-
-        // Status
-        existing.Probation = updated.Probation;
-        existing.ProbationPeriod = updated.ProbationPeriod;
-        existing.ProbationEndDate = updated.ProbationEndDate;
-        existing.ReviewedBy = updated.ReviewedBy;
-        existing.Block = updated.Block;
-        existing.BlockUntil = updated.BlockUntil;
-        existing.BlockReason = updated.BlockReason;
-        existing.BlockRemark = updated.BlockRemark;
-        existing.Resigned = updated.Resigned;
-        existing.ResignedDate = updated.ResignedDate;
-        existing.ExitType = updated.ExitType;
-        existing.ExitReason = updated.ExitReason;
-        existing.ExitRemark = updated.ExitRemark;
-        existing.BlockAttendance = updated.BlockAttendance;
-
-        // Emergency Contacts
-        existing.Keen1ContactName = updated.Keen1ContactName;
-        existing.Keen1ContactNumber = updated.Keen1ContactNumber;
-        existing.Keen1Relationship = updated.Keen1Relationship;
-        existing.Keen1Address = updated.Keen1Address;
-        existing.Keen1Position = updated.Keen1Position;
-        existing.Keen1WorkPlace = updated.Keen1WorkPlace;
-        existing.Keen1WorkPlaceContact = updated.Keen1WorkPlaceContact;
-        existing.Keen2ContactName = updated.Keen2ContactName;
-        existing.Keen2ContactNumber = updated.Keen2ContactNumber;
-        existing.Keen2Relationship = updated.Keen2Relationship;
-        existing.Keen2Address = updated.Keen2Address;
-        existing.Keen2Position = updated.Keen2Position;
-        existing.Keen2WorkPlace = updated.Keen2WorkPlace;
-        existing.Keen2WorkPlaceContact = updated.Keen2WorkPlaceContact;
-
-        existing.ModifiedBy = updated.ModifiedBy;
+        public bool Success { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public T? Data { get; set; }
     }
-
-    private void UpdateQualifications(Employee existing, List<Qualification> updatedQualifications)
-    {
-        // Remove qualifications not in updated list
-        var qualificationsToRemove = existing.Qualifications
-            .Where(eq => !updatedQualifications.Any(uq => uq.Id == eq.Id))
-            .ToList();
-
-        foreach (var qual in qualificationsToRemove)
-        {
-            _context.Qualifications.Remove(qual);
-        }
-
-        // Update or add qualifications
-        foreach (var updatedQual in updatedQualifications)
-        {
-            var existingQual = existing.Qualifications.FirstOrDefault(q => q.Id == updatedQual.Id);
-            if (existingQual != null)
-            {
-                // Sanitize and update existing qualification
-                SanitizeQualificationData(updatedQual);
-
-                existingQual.QualificationName = updatedQual.QualificationName;
-                existingQual.InstituteName = updatedQual.InstituteName;
-                existingQual.Year = updatedQual.Year;
-                existingQual.Month = updatedQual.Month;
-                existingQual.Description = updatedQual.Description;
-            }
-            else
-            {
-                // Sanitize and add new qualification
-                SanitizeQualificationData(updatedQual);
-                updatedQual.EmployeeId = existing.Id;
-                existing.Qualifications.Add(updatedQual);
-            }
-        }
-    }
-
-    private void UpdateWorkExperiences(Employee existing, List<WorkExperience> updatedExperiences)
-    {
-        // Remove experiences not in updated list
-        var experiencesToRemove = existing.WorkExperiences
-            .Where(ew => !updatedExperiences.Any(uw => uw.Id == ew.Id))
-            .ToList();
-
-        foreach (var exp in experiencesToRemove)
-        {
-            _context.WorkExperiences.Remove(exp);
-        }
-
-        // Update or add experiences
-        foreach (var updatedExp in updatedExperiences)
-        {
-            var existingExp = existing.WorkExperiences.FirstOrDefault(e => e.Id == updatedExp.Id);
-            if (existingExp != null)
-            {
-                // Sanitize and update existing experience
-                SanitizeWorkExperienceData(updatedExp);
-
-                existingExp.Position = updatedExp.Position;
-                existingExp.Company = updatedExp.Company;
-                existingExp.FromYear = updatedExp.FromYear;
-                existingExp.FromMonth = updatedExp.FromMonth;
-                existingExp.ToYear = updatedExp.ToYear;
-                existingExp.ToMonth = updatedExp.ToMonth;
-                existingExp.Description = updatedExp.Description;
-            }
-            else
-            {
-                // Sanitize and add new experience
-                SanitizeWorkExperienceData(updatedExp);
-                updatedExp.EmployeeId = existing.Id;
-                existing.WorkExperiences.Add(updatedExp);
-            }
-        }
-    }
-
-
-    private void ProcessQualificationsForNewEmployee(Employee employee)
-    {
-        if (employee.Qualifications != null && employee.Qualifications.Any())
-        {
-            foreach (var qualification in employee.Qualifications)
-            {
-                // Ensure ID is properly handled for int/long conversion
-                qualification.Id = 0; // Reset to default
-
-                SanitizeQualificationData(qualification);
-                qualification.CreatedDate = DateTime.UtcNow;
-            }
-        }
-    }
-
-    private void ProcessWorkExperiencesForNewEmployee(Employee employee)
-    {
-        if (employee.WorkExperiences != null && employee.WorkExperiences.Any())
-        {
-            foreach (var experience in employee.WorkExperiences)
-            {
-                // Ensure ID is properly handled for int/long conversion
-                experience.Id = 0; // Reset to default
-
-                // Handle ToYear data type if needed
-                // If your database expects nvarchar but model has int, convert:
-                // experience.ToYear = experience.ToYear.ToString();
-
-                SanitizeWorkExperienceData(experience);
-                experience.CreatedDate = DateTime.UtcNow;
-            }
-        }
-    }
-    #endregion
-
-
-
-    // Add these DTO classes to your EmployeesController
-    // Add these DTO classes inside your EmployeesController (after the existing EmployeeSearchResult class)
 
     public class EmployeeResponseDto
     {
-        // Basic Information
         public int Id { get; set; }
         public string EmployeeNo { get; set; } = string.Empty;
         public string EPFNo { get; set; } = string.Empty;
         public string AttendanceId { get; set; } = string.Empty;
         public int CompanyId { get; set; }
-
-        // Personal Information
         public string Title { get; set; } = string.Empty;
         public string Initial { get; set; } = string.Empty;
         public string FirstName { get; set; } = string.Empty;
@@ -1483,21 +1318,15 @@ public class EmployeesController : ControllerBase
         public string ContactNo { get; set; } = string.Empty;
         public string ResidentialAddress { get; set; } = string.Empty;
         public string PermanentAddress { get; set; } = string.Empty;
-
-        // New fields from your Employee entity
         public int? OccupationNo { get; set; }
         public int? OccupationGrade { get; set; }
         public string RoleType { get; set; } = "Standard Employee";
         public string LeaveApproval { get; set; } = "Super Admin";
         public string FinanceApproval { get; set; } = "Super Admin";
-
-        // Employment Information
         public int? DesignationId { get; set; }
         public int? DepartmentId { get; set; }
         public int? ShiftBlockId { get; set; }
         public DateTime? DateOfAppointment { get; set; }
-
-        // Salary Information
         public decimal BasicSalary { get; set; }
         public decimal BudgetaryAllowance { get; set; }
         public decimal BudgetaryAllowance2 { get; set; }
@@ -1511,8 +1340,6 @@ public class EmployeesController : ControllerBase
         public decimal CostOfLivingAllowance { get; set; }
         public decimal PerformanceAllowance { get; set; }
         public decimal HealthAllowance { get; set; }
-
-        // EPF and Bank Information
         public bool EPFPay { get; set; }
         public string SalaryPayType { get; set; } = "CashPay";
         public string AccountNumber { get; set; } = string.Empty;
@@ -1521,26 +1348,20 @@ public class EmployeesController : ControllerBase
         public string BankName { get; set; } = string.Empty;
         public string BranchCode { get; set; } = string.Empty;
         public string BranchName { get; set; } = string.Empty;
-
-        // Status Information
         public bool Probation { get; set; }
         public int? ProbationPeriod { get; set; }
         public DateTime? ProbationEndDate { get; set; }
         public string ReviewedBy { get; set; } = string.Empty;
-
         public bool Block { get; set; }
         public string BlockUntil { get; set; } = string.Empty;
         public string BlockReason { get; set; } = string.Empty;
         public string BlockRemark { get; set; } = string.Empty;
-
         public bool Resigned { get; set; }
         public DateTime? ResignedDate { get; set; }
         public string ExitType { get; set; } = string.Empty;
         public string ExitReason { get; set; } = string.Empty;
         public string ExitRemark { get; set; } = string.Empty;
         public bool BlockAttendance { get; set; }
-
-        // Emergency Contacts
         public string Keen1ContactName { get; set; } = string.Empty;
         public string Keen1ContactNumber { get; set; } = string.Empty;
         public string Keen1Relationship { get; set; } = string.Empty;
@@ -1548,7 +1369,6 @@ public class EmployeesController : ControllerBase
         public string Keen1Position { get; set; } = string.Empty;
         public string Keen1WorkPlace { get; set; } = string.Empty;
         public string Keen1WorkPlaceContact { get; set; } = string.Empty;
-
         public string Keen2ContactName { get; set; } = string.Empty;
         public string Keen2ContactNumber { get; set; } = string.Empty;
         public string Keen2Relationship { get; set; } = string.Empty;
@@ -1556,18 +1376,12 @@ public class EmployeesController : ControllerBase
         public string Keen2Position { get; set; } = string.Empty;
         public string Keen2WorkPlace { get; set; } = string.Empty;
         public string Keen2WorkPlaceContact { get; set; } = string.Empty;
-
-        // Profile
         public string ProfileImage { get; set; } = string.Empty;
         public bool IsActive { get; set; } = true;
-
-        // Audit Fields
         public string CreatedBy { get; set; } = string.Empty;
         public DateTime CreatedDate { get; set; }
         public string ModifiedBy { get; set; } = string.Empty;
         public DateTime? ModifiedDate { get; set; }
-
-        // Navigation properties as DTOs
         public List<QualificationDto> Qualifications { get; set; } = new List<QualificationDto>();
         public List<WorkExperienceDto> WorkExperiences { get; set; } = new List<WorkExperienceDto>();
         public List<LeaveCustomApproverDto> LeaveCustomApprovers { get; set; } = new List<LeaveCustomApproverDto>();
@@ -1583,9 +1397,7 @@ public class EmployeesController : ControllerBase
         public string CreatedBy { get; set; } = string.Empty;
         public DateTime CreatedDate { get; set; }
         public bool IsActive { get; set; } = true;
-
-        // Include approver details without circular reference
-        public ApproverEmployeeDto ApproverEmployee { get; set; }
+        public ApproverEmployeeDto? ApproverEmployee { get; set; }
     }
 
     public class FinanceCustomApproverDto
@@ -1597,8 +1409,7 @@ public class EmployeesController : ControllerBase
         public string CreatedBy { get; set; } = string.Empty;
         public DateTime CreatedDate { get; set; }
         public bool IsActive { get; set; } = true;
-
-        public ApproverEmployeeDto ApproverEmployee { get; set; }
+        public ApproverEmployeeDto? ApproverEmployee { get; set; }
     }
 
     public class ApproverEmployeeDto
@@ -1617,7 +1428,7 @@ public class EmployeesController : ControllerBase
         public int Id { get; set; }
         public string QualificationName { get; set; } = string.Empty;
         public string InstituteName { get; set; } = string.Empty;
-        public int Year { get; set; } // Match your existing Qualification.Year type
+        public int Year { get; set; }
         public string Month { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
     }
@@ -1627,12 +1438,10 @@ public class EmployeesController : ControllerBase
         public int Id { get; set; }
         public string Position { get; set; } = string.Empty;
         public string Company { get; set; } = string.Empty;
-        public int FromYear { get; set; }  // Changed from int? to string
+        public int FromYear { get; set; }
         public string FromMonth { get; set; } = string.Empty;
-        public string ToYear { get; set; } = string.Empty; // Changed from int? to string
+        public string ToYear { get; set; } = string.Empty;
         public string ToMonth { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
     }
 }
-
-

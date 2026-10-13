@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace TRIVORA_API.Models
 {
-    [Table("Company")] // Map to your existing table name
+    [Table("Company")]
     public class Company
     {
         [Key]
@@ -50,9 +50,26 @@ namespace TRIVORA_API.Models
 
         public string? CompanyAbout { get; set; }
 
-         public double? MinBasic { get; set; }
-        public string? MinBudgetaryAllowanceOne { get; set; }
-        public string? MinBudgetaryAllowanceTwo { get; set; }
+        [StringLength(15)]
+        public string? HalfDayOfWeek { get; set; }
+        
+        [StringLength(15)]
+        public string? HolidayOfWeek { get; set; }
+
+        // ✅ FIXED: Changed from double/string to decimal
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal MinBasic { get; set; }
+
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal MinBudgetaryAllowanceOne { get; set; }
+
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal MinBudgetaryAllowanceTwo { get; set; }
+
+        public int MaxEmployeeCount { get; set; }
+
+        public int SalaryStartDate_Office { get; set; }
+        public int SalaryStartDate_Wages { get; set; }
 
         // Navigation property
         public virtual ICollection<ShiftBlock>? ShiftBlocks { get; set; }

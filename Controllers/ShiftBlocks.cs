@@ -50,7 +50,7 @@ namespace TRIVORA_API.Controllers
             if (shiftBlock.CompanyId <= 0)
                 return BadRequest(new { success = false, message = "Company ID is required" });
 
-            // IMPORTANT: Reset ID to prevent manual ID insertion
+            // Reset ID to prevent manual ID insertion
             shiftBlock.Id = 0;
             shiftBlock.IsActive = true;
             shiftBlock.CreatedDate = DateTime.Now;
@@ -73,7 +73,6 @@ namespace TRIVORA_API.Controllers
             }
             catch (DbUpdateException ex)
             {
-                // Handle unique constraint violation at database level
                 if (ex.InnerException?.Message?.Contains("unique", StringComparison.OrdinalIgnoreCase) == true)
                     return Conflict(new { success = false, message = $"Shift block '{shiftBlock.ShiftName}' already exists in this company" });
 
@@ -91,14 +90,13 @@ namespace TRIVORA_API.Controllers
             if (string.IsNullOrWhiteSpace(shiftBlock.ShiftName))
                 return BadRequest(new { success = false, message = "Shift name is required" });
 
-            // Check if shift block exists and is active
             var existingShiftBlock = await _context.ShiftBlocks
                 .FirstOrDefaultAsync(s => s.Id == id && s.IsActive);
                 
             if (existingShiftBlock == null)
                 return NotFound(new { success = false, message = "Shift block not found" });
 
-            // Check for duplicate shift name (excluding current record)
+            // Check for duplicate shift name
             bool duplicateExists = await _context.ShiftBlocks
                 .AnyAsync(s => s.CompanyId == shiftBlock.CompanyId
                             && s.ShiftName.ToLower() == shiftBlock.ShiftName.Trim().ToLower()
@@ -110,7 +108,7 @@ namespace TRIVORA_API.Controllers
 
             try
             {
-                // Update properties
+                // Update basic properties
                 existingShiftBlock.ShiftName = shiftBlock.ShiftName;
                 existingShiftBlock.IsAttendance = shiftBlock.IsAttendance;
                 existingShiftBlock.ModifiedDate = DateTime.Now;
@@ -167,13 +165,36 @@ namespace TRIVORA_API.Controllers
                 existingShiftBlock.IsLateDeduction = shiftBlock.IsLateDeduction;
                 existingShiftBlock.LateDeductionType = shiftBlock.LateDeductionType;
                 existingShiftBlock.LateDeductRate = shiftBlock.LateDeductRate;
+                existingShiftBlock.LateDeductRate2 = shiftBlock.LateDeductRate2;
                 existingShiftBlock.LateGracePeriod = shiftBlock.LateGracePeriod;
 
-                // Overtime Settings
+                // Regular Overtime Settings
                 existingShiftBlock.IsOvertimePay = shiftBlock.IsOvertimePay;
                 existingShiftBlock.OvertimeType = shiftBlock.OvertimeType;
                 existingShiftBlock.OvertimeRate = shiftBlock.OvertimeRate;
+                existingShiftBlock.OvertimeRate2 = shiftBlock.OvertimeRate2;
                 existingShiftBlock.OtMinimumHours = shiftBlock.OtMinimumHours;
+
+                // ===== NEW: Poya Day Overtime =====
+                existingShiftBlock.IsOvertimePoyaDay = shiftBlock.IsOvertimePoyaDay;
+                existingShiftBlock.OvertimePoyaDayType = shiftBlock.OvertimePoyaDayType;
+                existingShiftBlock.OvertimePoyaDayRate = shiftBlock.OvertimePoyaDayRate;
+                existingShiftBlock.OvertimePoyaDayRate2 = shiftBlock.OvertimePoyaDayRate2;
+                existingShiftBlock.OtPoyaDayMinimumHours = shiftBlock.OtPoyaDayMinimumHours;
+
+                // ===== NEW: Bank Holiday & Mercantile Overtime =====
+                existingShiftBlock.IsOvertimeBankHoliday = shiftBlock.IsOvertimeBankHoliday;
+                existingShiftBlock.OvertimeBankHolidayType = shiftBlock.OvertimeBankHolidayType;
+                existingShiftBlock.OvertimeBankHolidayRate = shiftBlock.OvertimeBankHolidayRate;
+                existingShiftBlock.OvertimeBankHolidayRate2 = shiftBlock.OvertimeBankHolidayRate2;
+                existingShiftBlock.OtBankHolidayMinimumHours = shiftBlock.OtBankHolidayMinimumHours;
+
+                // ===== NEW: Sunday & Other Holiday Overtime =====
+                existingShiftBlock.IsOvertimeSundayHoliday = shiftBlock.IsOvertimeSundayHoliday;
+                existingShiftBlock.OvertimeSundayHolidayType = shiftBlock.OvertimeSundayHolidayType;
+                existingShiftBlock.OvertimeSundayHolidayRate = shiftBlock.OvertimeSundayHolidayRate;
+                existingShiftBlock.OvertimeSundayHolidayRate2 = shiftBlock.OvertimeSundayHolidayRate2;
+                existingShiftBlock.OtSundayHolidayMinimumHours = shiftBlock.OtSundayHolidayMinimumHours;
 
                 // Shift Type
                 existingShiftBlock.ShiftType = shiftBlock.ShiftType;
@@ -207,7 +228,6 @@ namespace TRIVORA_API.Controllers
             if (shiftBlock == null)
                 return NotFound(new { success = false, message = "Shift block not found" });
 
-            // Soft delete
             shiftBlock.IsActive = false;
             shiftBlock.ModifiedDate = DateTime.Now;
 
