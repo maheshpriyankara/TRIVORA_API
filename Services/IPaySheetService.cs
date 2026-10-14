@@ -1,19 +1,20 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using TRIVORA_API.Models;
 
 namespace TRIVORA_API.Services
 {
     public interface IPaySheetService
     {
-        Task<IEnumerable<TRIVORA_API.Models.PaySheetDto>> GetPaySheetsByEmployeeAsync(int employeeId);
-        Task<IEnumerable<TRIVORA_API.Models.PaySheetDto>> GetPaySheetsByMonthAsync(string month);
-        Task<IEnumerable<TRIVORA_API.Models.PaySheetDto>> GetPaySheetsByEmployeeAndMonthAsync(int employeeId, string month);
-        Task<TRIVORA_API.Models.PaySheetDto?> GetPaySheetByIdAsync(int id);
-        Task<TRIVORA_API.Models.PaySheetDto> CreatePaySheetAsync(TRIVORA_API.Models.PaySheetRequestDto request);
-        Task<TRIVORA_API.Models.PaySheetDto> UpdatePaySheetAsync(int id, TRIVORA_API.Models.PaySheetRequestDto request);
+        Task<IEnumerable<PaySheetDto>> GetPaySheetsByEmployeeAsync(int employeeId);
+        Task<IEnumerable<PaySheetDto>> GetPaySheetsByMonthAsync(string month);
+        Task<IEnumerable<PaySheetDto>> GetPaySheetsByEmployeeAndMonthAsync(int employeeId, string month);
+        Task<PaySheetDto?> GetPaySheetByIdAsync(int id);
+        Task<PaySheetDto> CreatePaySheetAsync(PaySheetRequestDto request);
+        Task<PaySheetDto> UpdatePaySheetAsync(int id, PaySheetRequestDto request);
         Task<bool> DeletePaySheetAsync(int id);
-        Task<TRIVORA_API.Models.PaySheetDto> CalculatePaySheetAsync(int employeeId, string month);
-        Task<IEnumerable<TRIVORA_API.Models.PaySheetDto>> GetPaySheetsByCompanyAndMonthAsync(int companyId, string month);
+        Task<PaySheetDto> CalculatePaySheetAsync(int employeeId, string month);
+        Task<IEnumerable<PaySheetDto>> GetPaySheetsByCompanyAndMonthAsync(int companyId, string month);
         Task<bool> ProcessPayrollAsync(int companyId, string month);
     }
 }

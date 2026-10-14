@@ -4,7 +4,7 @@ using Microsoft.Extensions.Options;
 using MimeKit;
 using TrivoraHrisBackend.Models;
 
-namespace TrivoraHrisBackend.Service
+namespace TRIVORA_API.Service
 {
     public class EmailService
     {

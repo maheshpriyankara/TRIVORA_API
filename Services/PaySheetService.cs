@@ -245,45 +245,33 @@ namespace TRIVORA_API.Services
                 throw new KeyNotFoundException($"Employee with ID {employeeId} not found");
             }
 
-            // Get attendance data for the month using direct SQL
+            // Get attendance data for the month
             var attendanceData = await GetEmployeeAttendanceForMonthAsync(employeeId, month);
 
-            // Calculate basic pay components - convert decimal to double for calculations
+            // Calculate basic pay components
             double basicSalary = (double)employee.BasicSalary;
-            double dailyRate = basicSalary / 30; // Assuming 30 days
+            double dailyRate = basicSalary / 30;
 
-            // Get working days and calculate pay
             int workingDays = attendanceData.WorkingDays;
             int noPayDays = attendanceData.NoPayDays;
             double totalBasic = dailyRate * workingDays;
 
-            // OT calculations
             double otNormalHours = attendanceData.OtNormalHours;
             double otSundayHours = attendanceData.OtSundayHours;
-            double otNormal = otNormalHours * (dailyRate / 8 * 1.5); // 1.5x for normal OT
-            double otSunday = otSundayHours * (dailyRate / 8 * 2); // 2x for Sunday OT
+            double otNormal = otNormalHours * (dailyRate / 8 * 1.5);
+            double otSunday = otSundayHours * (dailyRate / 8 * 2);
 
-            // Calculate deductions
             double lateHours = attendanceData.LateHours;
-            double late = lateHours * (dailyRate / 8); // Deduct pay for late hours
+            double late = lateHours * (dailyRate / 8);
             double noPay = noPayDays * dailyRate;
 
-            // Calculate total earnings
             double totalEarnings = totalBasic + otNormal + otSunday;
-            
-            // Calculate EPF (8% employee contribution)
             double epf8 = totalEarnings * 0.08;
-            
-            // Calculate total deductions
             double totalDeductions = late + noPay + epf8;
-            
-            // Calculate net salary
             double netSalary = totalEarnings - totalDeductions;
 
-            // Get employee name
             string employeeName = $"{employee.FirstName} {employee.LastName}";
 
-            // Create paysheet DTO - all monetary values as double? to match the DTO
             var paySheetDto = new PaySheetDto
             {
                 EmployeeId = employeeId,
@@ -364,7 +352,6 @@ namespace TRIVORA_API.Services
         {
             try
             {
-                // Get all active employees for the company
                 var employees = await _context.Employees
                     .Where(e => e.CompanyId == companyId && e.IsActive)
                     .ToListAsync();
@@ -374,35 +361,28 @@ namespace TRIVORA_API.Services
                     return false;
                 }
 
-                // Process payroll for each employee
                 foreach (var employee in employees)
                 {
                     try
                     {
-                        // Check if paysheet already exists
                         var existing = await _context.PaySheet
                             .FirstOrDefaultAsync(p => p.EmployeeId == employee.Id && p.Month == month);
 
-                        // Calculate paysheet
                         var calculatedPaysheet = await CalculatePaySheetAsync(employee.Id, month);
 
-                        // Create or update paysheet
                         if (existing != null)
                         {
-                            // Update existing
                             var updateRequest = MapDtoToRequest(calculatedPaysheet);
                             await UpdatePaySheetAsync(existing.Id, updateRequest);
                         }
                         else
                         {
-                            // Create new
                             var createRequest = MapDtoToRequest(calculatedPaysheet);
                             await CreatePaySheetAsync(createRequest);
                         }
                     }
                     catch (Exception ex)
                     {
-                        // Log error but continue with other employees
                         Console.WriteLine($"Error processing payroll for employee {employee.Id}: {ex.Message}");
                     }
                 }
@@ -418,7 +398,6 @@ namespace TRIVORA_API.Services
 
         private async Task<AttendanceSummaryDto> GetEmployeeAttendanceForMonthAsync(int employeeId, string month)
         {
-            // Parse month to get date range
             var monthNumber = GetMonthNumber(month);
             if (monthNumber == 0)
             {
@@ -436,7 +415,6 @@ namespace TRIVORA_API.Services
             var startDate = new DateTime(year, monthNumber, 1);
             var endDate = startDate.AddMonths(1).AddDays(-1);
 
-            // Query timesheet data for the month - using TimeSheet table
             var sql = @"
                 SELECT 
                     ISNULL(COUNT(DISTINCT CAST(FirstInDate AS DATE)), 0) as WorkingDays,
@@ -456,20 +434,14 @@ namespace TRIVORA_API.Services
                 EndDate = endDate
             });
 
-            // If no data found, return default values
-            if (result == null)
+            return result ?? new AttendanceSummaryDto
             {
-                return new AttendanceSummaryDto
-                {
-                    WorkingDays = 0,
-                    NoPayDays = 0,
-                    OtNormalHours = 0,
-                    OtSundayHours = 0,
-                    LateHours = 0
-                };
-            }
-
-            return result;
+                WorkingDays = 0,
+                NoPayDays = 0,
+                OtNormalHours = 0,
+                OtSundayHours = 0,
+                LateHours = 0
+            };
         }
 
         private int GetMonthNumber(string monthName)
@@ -556,7 +528,6 @@ namespace TRIVORA_API.Services
         }
     }
 
-    // DTO for attendance summary
     public class AttendanceSummaryDto
     {
         public int WorkingDays { get; set; }

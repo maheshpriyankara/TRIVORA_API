@@ -1,33 +1,36 @@
+using System;
+
 namespace TrivoraHrisBackend.Models
 {
     public class PaySheetPrintDto
     {
-        public int      PaySheetId     { get; set; }
-        public int      EmployeeId     { get; set; }
-        public int      CompanyId      { get; set; }
-        public int      DepartmentId   { get; set; }
-        public int      DesignationId  { get; set; }
-        public string   Period         { get; set; } = "";
+        // ---- Ids ----
+        public int      PaySheetId        { get; set; }
+        public int      EmployeeId        { get; set; }
+        public int      CompanyId         { get; set; }
+        public int      DepartmentId      { get; set; }
+        public int      DesignationId     { get; set; }
+        public string   Period            { get; set; } = "";
 
-        public string   SalaryPayType  { get; set; } = "Bank";
-        public string   Nic            { get; set; } = "";
+        // ---- From payroll (master) ----
+        public string   SalaryPayType     { get; set; } = "Bank";
+        public string   Nic               { get; set; } = "";
+        public string   EmployeeName      { get; set; } = "";
+        public string   EmployeeNo        { get; set; } = "";
+        public string   EpfNo             { get; set; } = "";
+        public string   CompanyName       { get; set; } = "";
+        public string   CompanyAddress    { get; set; } = "";
+        public string   Department        { get; set; } = "";
+        public string   Designation       { get; set; } = "";
 
-        public string   EmployeeName   { get; set; } = "";
-        public string   EmployeeNo     { get; set; } = "";
-        public string   EpfNo          { get; set; } = "";
+        // ---- Bank (from payroll) ----
+        public string   AccountNumber     { get; set; } = "";
+        public string   BankName          { get; set; } = "";
+        public string   BankCode          { get; set; } = "";
+        public string   BranchName        { get; set; } = "";
+        public string   BranchCode        { get; set; } = "";
 
-        public string   CompanyName    { get; set; } = "";
-        public string   CompanyAddress { get; set; } = "";
-
-        public string   Department     { get; set; } = "";
-        public string   Designation    { get; set; } = "";
-
-        public string   AccountNumber  { get; set; } = "";
-        public string   BankName       { get; set; } = "";
-        public string   BankCode       { get; set; } = "";
-        public string   BranchName     { get; set; } = "";
-        public string   BranchCode     { get; set; } = "";
-
+        // ---- From paysheet (monthly values) ----
         public decimal  BasicSalary            { get; set; }
         public decimal  BudgetaryAllowance     { get; set; }
         public decimal  BudgetaryAllowance2    { get; set; }

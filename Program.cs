@@ -5,9 +5,9 @@ using Microsoft.OpenApi.Models;
 using System.Reflection;
 using System.Text;
 using TRIVORA_API.Data;
+using TRIVORA_API.Service;
 using TRIVORA_API.Services;
 using TrivoraHrisBackend.Repositories;
-using TrivoraHrisBackend.Service;
 
 var builder = WebApplication.CreateBuilder(args);
 
