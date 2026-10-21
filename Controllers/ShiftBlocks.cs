@@ -54,7 +54,12 @@ namespace TRIVORA_API.Controllers
             shiftBlock.Id = 0;
             shiftBlock.IsActive = true;
             shiftBlock.CreatedDate = DateTime.Now;
+                        // Validate general settings (weekly day off / half day off)
+            var generalSettingsValidation = ValidateGeneralSettings(shiftBlock);
+            if (!generalSettingsValidation.IsValid)
+                return BadRequest(new { success = false, message = generalSettingsValidation.ErrorMessage });
 
+            // Validate general settings
             // Check for duplicate shift name within the same company
             bool duplicateExists = await _context.ShiftBlocks
                 .AnyAsync(s => s.CompanyId == shiftBlock.CompanyId
@@ -79,7 +84,19 @@ namespace TRIVORA_API.Controllers
                 return StatusCode(500, new { success = false, message = "An error occurred while saving the shift block" });
             }
         }
+private (bool IsValid, string? ErrorMessage) ValidateGeneralSettings(ShiftBlock shiftBlock)
+        {
+            if (!string.IsNullOrWhiteSpace(shiftBlock.FirstWeeklyDayOffDay) &&
+                !string.IsNullOrWhiteSpace(shiftBlock.FirstWeeklyHalfDayOffDay) &&
+                string.Equals(shiftBlock.FirstWeeklyDayOffDay.Trim(),
+                              shiftBlock.FirstWeeklyHalfDayOffDay.Trim(),
+                              StringComparison.OrdinalIgnoreCase))
+            {
+                return (false, "First Weekly Day Off and First Weekly Half Day Off cannot be on the same day.");
+            }
 
+            return (true, null);
+        }   
         // PUT: api/shiftblocks/5
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, ShiftBlock shiftBlock)
@@ -93,6 +110,11 @@ namespace TRIVORA_API.Controllers
             var existingShiftBlock = await _context.ShiftBlocks
                 .FirstOrDefaultAsync(s => s.Id == id && s.IsActive);
                 
+                        // Validate general settings (weekly day off / half day off)
+            var generalSettingsValidation = ValidateGeneralSettings(shiftBlock);
+            if (!generalSettingsValidation.IsValid)
+                return BadRequest(new { success = false, message = generalSettingsValidation.ErrorMessage });
+
             if (existingShiftBlock == null)
                 return NotFound(new { success = false, message = "Shift block not found" });
 
@@ -168,6 +190,13 @@ namespace TRIVORA_API.Controllers
                 existingShiftBlock.LateDeductRate2 = shiftBlock.LateDeductRate2;
                 existingShiftBlock.LateGracePeriod = shiftBlock.LateGracePeriod;
 
+                                // ===== NEW: Late Deduction - General Half Day =====
+                existingShiftBlock.IsLateDeductionHalfDay = shiftBlock.IsLateDeductionHalfDay;
+                existingShiftBlock.LateDeductionHalfDayType = shiftBlock.LateDeductionHalfDayType;
+                existingShiftBlock.LateDeductHalfDayRate = shiftBlock.LateDeductHalfDayRate;
+                existingShiftBlock.LateDeductHalfDayRate2 = shiftBlock.LateDeductHalfDayRate2;
+                existingShiftBlock.LateGracePeriodHalfDay = shiftBlock.LateGracePeriodHalfDay;
+
                 // Regular Overtime Settings
                 existingShiftBlock.IsOvertimePay = shiftBlock.IsOvertimePay;
                 existingShiftBlock.OvertimeType = shiftBlock.OvertimeType;
@@ -196,6 +225,23 @@ namespace TRIVORA_API.Controllers
                 existingShiftBlock.OvertimeSundayHolidayRate2 = shiftBlock.OvertimeSundayHolidayRate2;
                 existingShiftBlock.OtSundayHolidayMinimumHours = shiftBlock.OtSundayHolidayMinimumHours;
 
+
+                                // ===== NEW: Weekly General Day Off Overtime =====
+                existingShiftBlock.IsOvertimeWeeklyGeneralDayOff = shiftBlock.IsOvertimeWeeklyGeneralDayOff;
+                existingShiftBlock.OvertimeWeeklyGeneralDayOffType = shiftBlock.OvertimeWeeklyGeneralDayOffType;
+                existingShiftBlock.OvertimeWeeklyGeneralDayOffRate = shiftBlock.OvertimeWeeklyGeneralDayOffRate;
+                existingShiftBlock.OvertimeWeeklyGeneralDayOffRate2 = shiftBlock.OvertimeWeeklyGeneralDayOffRate2;
+                existingShiftBlock.OtWeeklyGeneralDayOffMinimumHours = shiftBlock.OtWeeklyGeneralDayOffMinimumHours;
+
+                // ===== NEW: Weekly General Half Day Overtime =====
+                existingShiftBlock.IsOvertimeWeeklyGeneralHalfDay = shiftBlock.IsOvertimeWeeklyGeneralHalfDay;
+                existingShiftBlock.OvertimeWeeklyGeneralHalfDayType = shiftBlock.OvertimeWeeklyGeneralHalfDayType;
+                existingShiftBlock.OvertimeWeeklyGeneralHalfDayRate = shiftBlock.OvertimeWeeklyGeneralHalfDayRate;
+                existingShiftBlock.OvertimeWeeklyGeneralHalfDayRate2 = shiftBlock.OvertimeWeeklyGeneralHalfDayRate2;
+                existingShiftBlock.OtWeeklyGeneralHalfDayMinimumHours = shiftBlock.OtWeeklyGeneralHalfDayMinimumHours;
+                                // ===== NEW: General Settings - Weekly Day Off / Half Day Off =====
+                existingShiftBlock.FirstWeeklyDayOffDay = shiftBlock.FirstWeeklyDayOffDay;
+                existingShiftBlock.FirstWeeklyHalfDayOffDay = shiftBlock.FirstWeeklyHalfDayOffDay;
                 // Shift Type
                 existingShiftBlock.ShiftType = shiftBlock.ShiftType;
 

@@ -6,21 +6,28 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.Extensions.Configuration;
+using Dapper;
 
 namespace TRIVORA_API.Controllers
 {
+     public class TriggerProcessQueueRequest
+    {
+        public int EmployeeId { get; set; }
+        public string? PeriodKey { get; set; }
+    }
     [ApiController]
     [Route("api/[controller]")]
     public class HomeController : ControllerBase
     {
         private readonly string _connectionString;
         private readonly string _jwtSecretKey;
-
-        public HomeController(IConfiguration configuration)
+private readonly ILogger<HomeController> _logger;
+        public HomeController(IConfiguration configuration,ILogger<HomeController> logger)
         {
             _connectionString = configuration.GetConnectionString("DefaultConnection");
             _jwtSecretKey = configuration["Jwt:SecretKey"] ??
                             throw new Exception("JWT Secret Key not found in configuration!");
+                             _logger = logger;
         }
 // ============================================
 // EMPLOYEE NAVIGATION ENDPOINTS
@@ -489,7 +496,137 @@ public class EmployeeNavigationResult
                 return StatusCode(500, new { success = false, message = ex.Message });
             }
         }
+[HttpPost("trigger-processqueue")]
+        public async Task<IActionResult> TriggerProcessQueue([FromBody] TriggerProcessQueueRequest req)
+        {
+            if (req == null || req.EmployeeId <= 0 || string.IsNullOrWhiteSpace(req.PeriodKey))
+                return BadRequest(new { success = false, message = "employeeId and periodKey are required" });
 
+            try
+            {
+                var ipAddress = HttpContext?.Connection?.RemoteIpAddress?.ToString() ?? "Unknown";
+
+                // Reuse the exact same helper logic that was inside AttendanceController
+                await TriggerProcessQueueInternal(req.EmployeeId, req.PeriodKey!, ipAddress);
+
+                return Ok(new { success = true });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Error triggering process queue for employee {EmployeeId}, period {PeriodKey}",
+                    req.EmployeeId, req.PeriodKey);
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+
+        // ============================================================
+        // INTERNAL HELPER — same logic you had in AttendanceController
+        // ============================================================
+        private async Task TriggerProcessQueueInternal(int employeeId, string periodKey, string ipAddress = "Unknown")
+        {
+            using var connection = new SqlConnection(_connectionString);
+
+            const int staleMinutes = 10;
+
+            // 1) Clear stale processing rows
+            var clearStaleSql = @"
+                UPDATE process_queue
+                SET 
+                    processing = 1,
+                    process_end = 1,
+                    processEnd_stageTwo_date = GETDATE()
+                WHERE emp_systemID = @EmployeeId
+                  AND period_ = @PeriodKey
+                  AND processing = 1
+                  AND process_end = 0
+                  AND processStart_date IS NOT NULL
+                  AND DATEDIFF(MINUTE, processStart_date, GETDATE()) > @StaleMinutes";
+
+            var staleCleared = await connection.ExecuteAsync(clearStaleSql, new
+            {
+                EmployeeId = employeeId,
+                PeriodKey = periodKey,
+                StaleMinutes = staleMinutes
+            });
+
+            if (staleCleared > 0)
+            {
+                _logger.LogWarning(
+                    "Cleared {Count} stale processing row(s) for employee {EmployeeId}, period {PeriodKey}",
+                    staleCleared, employeeId, periodKey);
+            }
+
+            // 2) Skip if a pending row exists
+            var pendingCount = await connection.ExecuteScalarAsync<int>(@"
+                SELECT COUNT(*) FROM process_queue
+                WHERE emp_systemID = @EmployeeId
+                  AND period_ = @PeriodKey
+                  AND processing = 0
+                  AND process_end = 0",
+                new { EmployeeId = employeeId, PeriodKey = periodKey });
+
+            if (pendingCount > 0)
+            {
+                _logger.LogInformation(
+                    "Pending queue row already exists for employee {EmployeeId}, period {PeriodKey}. Skipping insert.",
+                    employeeId, periodKey);
+                return;
+            }
+
+            // 3) Skip if an active processing row exists
+            var processingCount = await connection.ExecuteScalarAsync<int>(@"
+                SELECT COUNT(*) FROM process_queue
+                WHERE emp_systemID = @EmployeeId
+                  AND period_ = @PeriodKey
+                  AND processing = 1
+                  AND process_end = 0",
+                new { EmployeeId = employeeId, PeriodKey = periodKey });
+
+            if (processingCount > 0)
+            {
+                _logger.LogInformation(
+                    "Active processing row exists for employee {EmployeeId}, period {PeriodKey}. Skipping insert.",
+                    employeeId, periodKey);
+                return;
+            }
+
+            // 4) Resolve emp_empID from Employees table
+            var empEmpId = await connection.ExecuteScalarAsync<string>(
+                "SELECT EmployeeNo FROM Employees WHERE Id = @EmployeeId",
+                new { EmployeeId = employeeId }) ?? employeeId.ToString();
+
+            // 5) Resolve current user id
+            int userId = 0;
+            var userIdClaim = User?.FindFirst("UserId")?.Value ?? User?.FindFirst("sub")?.Value;
+            if (!string.IsNullOrEmpty(userIdClaim)) int.TryParse(userIdClaim, out userId);
+
+            // 6) Insert the queue row
+            var insertSql = @"
+                INSERT INTO process_queue (
+                    emp_systemID, emp_empID, period_, process_status,
+                    processing, process_end, request_date, request_ip,
+                    requset_from, processStart_date, processEnd_stageOne_date,
+                    processEnd_stageTwo_date, request_by)
+                VALUES (
+                    @EmployeeId, @EmpEmpId, @PeriodKey, 0,
+                    0, 0, GETDATE(), @IpAddress,
+                    'AttendancePage', GETDATE(), GETDATE(),
+                    GETDATE(), @UserId)";
+
+            await connection.ExecuteAsync(insertSql, new
+            {
+                EmployeeId = employeeId,
+                EmpEmpId = empEmpId,
+                PeriodKey = periodKey,
+                IpAddress = ipAddress,
+                UserId = userId > 0 ? userId.ToString() : "System"
+            });
+
+            _logger.LogInformation(
+                "Inserted new process queue row for employee {EmployeeId} (emp_empID={EmpEmpId}), period {PeriodKey}",
+                employeeId, empEmpId, periodKey);
+        }
         [HttpGet("company-designations")]
         public IActionResult GetCompanyDesignations([FromQuery] string companyID)
         {

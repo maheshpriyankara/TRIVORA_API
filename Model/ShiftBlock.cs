@@ -187,5 +187,57 @@ namespace TRIVORA_API.Models
         // Navigation property
         [ForeignKey("CompanyId")]
         public virtual Company? Company { get; set; }
+
+                // ===== NEW: Overtime - Weekly General Day Off =====
+        [Required]
+        public bool IsOvertimeWeeklyGeneralDayOff { get; set; } = false;
+        
+        [StringLength(20)]
+        public string? OvertimeWeeklyGeneralDayOffType { get; set; }
+        
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? OvertimeWeeklyGeneralDayOffRate { get; set; }
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? OvertimeWeeklyGeneralDayOffRate2 { get; set; }
+        
+        [Column(TypeName = "decimal(5,2)")]
+        public decimal? OtWeeklyGeneralDayOffMinimumHours { get; set; }
+        
+        // ===== NEW: Overtime - Weekly General Half Day =====
+        [Required]
+        public bool IsOvertimeWeeklyGeneralHalfDay { get; set; } = false;
+        
+        [StringLength(20)]
+        public string? OvertimeWeeklyGeneralHalfDayType { get; set; }
+        
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? OvertimeWeeklyGeneralHalfDayRate { get; set; }
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? OvertimeWeeklyGeneralHalfDayRate2 { get; set; }
+        
+        [Column(TypeName = "decimal(5,2)")]
+        public decimal? OtWeeklyGeneralHalfDayMinimumHours { get; set; }
+
+                // ===== NEW: General Settings - Weekly Day Off / Half Day Off =====
+        [StringLength(20)]
+        public string? FirstWeeklyDayOffDay { get; set; }
+        
+        [StringLength(20)]
+        public string? FirstWeeklyHalfDayOffDay { get; set; }
+
+                // ===== NEW: Late Deduction - General Half Day =====
+        [Required]
+        public bool IsLateDeductionHalfDay { get; set; } = false;
+        
+        [StringLength(20)]
+        public string? LateDeductionHalfDayType { get; set; }
+        
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? LateDeductHalfDayRate { get; set; }
+        
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? LateDeductHalfDayRate2 { get; set; }
+        
+        public int? LateGracePeriodHalfDay { get; set; }
     }
 }

@@ -45,7 +45,7 @@ namespace TRIVORA_API.Data
         public DbSet<AttendanceRecord> AttendanceRecords { get; set; }
         public DbSet<ProcessQueue> ProcessQueues { get; set; }
         public DbSet<AttendanceManualLog> AttendanceManualLogs { get; set; }
-        
+        public DbSet<NightDate> NightDates { get; set; }
         // Deductions and TimeSheet
         public DbSet<Deduction> Deductions { get; set; }
         public DbSet<TimeSheet> TimeSheets { get; set; }
@@ -122,7 +122,6 @@ namespace TRIVORA_API.Data
                 // Configure default values to match your database schema
                 entity.Property(e => e.LateHours).HasDefaultValue(TimeSpan.Zero);
                 entity.Property(e => e.OtHoursNormal).HasDefaultValue(TimeSpan.Zero);
-                entity.Property(e => e.OtHoursDouble).HasDefaultValue(TimeSpan.Zero);
                 entity.Property(e => e.OtHoursExtra).HasDefaultValue(TimeSpan.Zero);
                 entity.Property(e => e.WorkHours).HasDefaultValue(TimeSpan.Zero);
                 entity.Property(e => e.DayType).HasDefaultValue("Normal");

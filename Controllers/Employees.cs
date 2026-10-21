@@ -1113,7 +1113,8 @@ public class EmployeesController : ControllerBase
 
         return (true, null!);
     }
-
+            // ===== Validation Helper: Weekly Day Off / Half Day Off =====
+        
     private void SanitizeEmployeeData(Employee employee)
     {
         employee.Title = employee.Title ?? string.Empty;

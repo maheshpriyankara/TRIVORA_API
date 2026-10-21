@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Microsoft.Data.SqlClient;
 using TRIVORA_API.Data;
 using TRIVORA_API.Services;
+using TRIVORA_API.Models;
 
 namespace TRIVORA_API.Controllers
 {
@@ -21,8 +22,6 @@ namespace TRIVORA_API.Controllers
         public string InputType { get; set; } = "Manual";
         public DateTime? InputDateTime { get; set; }
     }
-
-
 
     public class PayrollPeriod
     {
@@ -70,6 +69,31 @@ namespace TRIVORA_API.Controllers
         public bool IsHalfDay { get; set; }
     }
 
+    public class ManualAttendanceEntryDto
+    {
+        public int EmployeeId { get; set; }
+        public DateTime DateTime { get; set; }
+        public string? PeriodKey { get; set; }
+    }
+
+    public class SaveShiftBlockRequest
+    {
+        public int EmployeeId { get; set; }
+        public string Date { get; set; } = string.Empty;
+        public int ShiftBlockIdFirstShift { get; set; }
+        public int? ShiftBlockIdSecondShift { get; set; }
+        public string PeriodKey { get; set; } = string.Empty;
+    }
+
+    public class NightDateRequest
+    {
+        public int EmployeeId { get; set; }
+        public string Date { get; set; } = string.Empty;
+        public bool IsFullNight { get; set; }
+        public string? PeriodKey { get; set; }
+        public string? Remarks { get; set; }
+    }
+
     // ========== CONTROLLER ==========
     [ApiController]
     [Route("api/[controller]")]
@@ -107,37 +131,27 @@ namespace TRIVORA_API.Controllers
             try
             {
                 if (employeeId <= 0 || string.IsNullOrEmpty(periodKey))
-                {
                     return BadRequest(new { success = false, message = "EmployeeId and PeriodKey are required" });
-                }
 
                 using var connection = new SqlConnection(_connectionString);
 
                 var periodParts = periodKey.Split('-');
                 if (periodParts.Length < 2)
-                {
                     return BadRequest(new { success = false, message = "Invalid PeriodKey format" });
-                }
 
                 if (!int.TryParse(periodParts[0], out int year))
-                {
                     return BadRequest(new { success = false, message = "Invalid year in PeriodKey" });
-                }
 
                 int month = GetMonthNumber(periodParts[1]);
                 if (month == 0)
-                {
                     return BadRequest(new { success = false, message = "Invalid month in PeriodKey" });
-                }
 
                 var employee = await _context.Employees
                     .AsNoTracking()
                     .FirstOrDefaultAsync(e => e.Id == employeeId);
 
                 if (employee == null)
-                {
                     return NotFound(new { success = false, message = "Employee not found" });
-                }
 
                 var companySettings = await _companySettingsService.GetCompanySettingsAsync(employee.CompanyId);
                 int salaryStartDay = companySettings?.SalaryStartDate_Wages ?? 1;
@@ -198,28 +212,20 @@ namespace TRIVORA_API.Controllers
                     return BadRequest(new { success = false, message = "Invalid data" });
 
                 if (entry.DateTime == DateTime.MinValue)
-                {
                     return BadRequest(new { success = false, message = "DateTime is required" });
-                }
 
                 if (string.IsNullOrEmpty(entry.PeriodKey))
-                {
                     entry.PeriodKey = $"{entry.DateTime.Year}-{entry.DateTime:MMMM}";
-                }
 
-                // Get employee
                 var employee = await _context.Employees
                     .AsNoTracking()
                     .FirstOrDefaultAsync(e => e.Id == entry.EmployeeId);
 
                 if (employee == null)
-                {
                     return NotFound(new { success = false, message = $"Employee with ID {entry.EmployeeId} not found" });
-                }
 
                 using var connection = new SqlConnection(_connectionString);
 
-                // Check if record exists for this datetime
                 var checkSql = "SELECT COUNT(*) FROM Attendance WHERE datetime = @DateTime AND employee_id = @EmployeeId";
                 var exists = await connection.ExecuteScalarAsync<int>(checkSql, new
                 {
@@ -230,13 +236,10 @@ namespace TRIVORA_API.Controllers
                 int rowsAffected;
                 if (exists > 0)
                 {
-                    // UPDATE existing record - update the datetime and input_datetime
                     var updateSql = @"
-                UPDATE Attendance 
-                SET 
-                    datetime = @DateTime,
-                    input_datetime = GETDATE()
-                WHERE datetime = @DateTime AND employee_id = @EmployeeId";
+                        UPDATE Attendance 
+                        SET datetime = @DateTime, input_datetime = GETDATE()
+                        WHERE datetime = @DateTime AND employee_id = @EmployeeId";
 
                     rowsAffected = await connection.ExecuteAsync(updateSql, new
                     {
@@ -247,21 +250,9 @@ namespace TRIVORA_API.Controllers
                 }
                 else
                 {
-                    // INSERT new record
                     var insertSql = @"
-                INSERT INTO Attendance (
-                    employee_id,
-                    company_id,
-                    datetime,
-                    input_type,
-                    input_datetime
-                ) VALUES (
-                    @EmployeeId,
-                    @CompanyId,
-                    @DateTime,
-                    'Manual',
-                    GETDATE()
-                )";
+                        INSERT INTO Attendance (employee_id, company_id, datetime, input_type, input_datetime)
+                        VALUES (@EmployeeId, @CompanyId, @DateTime, 'Manual', GETDATE())";
 
                     rowsAffected = await connection.ExecuteAsync(insertSql, new
                     {
@@ -277,10 +268,8 @@ namespace TRIVORA_API.Controllers
                     await TriggerProcessQueue(entry.EmployeeId, entry.PeriodKey, ipAddress);
                     return Ok(new { success = true, message = "Attendance saved successfully" });
                 }
-                else
-                {
-                    return StatusCode(500, new { success = false, message = "Failed to save attendance" });
-                }
+
+                return StatusCode(500, new { success = false, message = "Failed to save attendance" });
             }
             catch (Exception ex)
             {
@@ -288,7 +277,7 @@ namespace TRIVORA_API.Controllers
                 return StatusCode(500, new { success = false, message = ex.Message });
             }
         }
-        // DELETE: api/attendance/manual-entry/{id}
+
         [HttpDelete("manual-entry/{id}")]
         public async Task<IActionResult> DeleteManualEntry(int id)
         {
@@ -297,37 +286,23 @@ namespace TRIVORA_API.Controllers
                 using var connection = new SqlConnection(_connectionString);
 
                 var getEntrySql = @"
-                    SELECT 
-                        id as Id,
-                        employee_id as EmployeeId,
-                        company_id as CompanyId,
-                        datetime as DateTime,
-                        input_type as InputType
-                    FROM Attendance
-                    WHERE id = @Id";
+                    SELECT id as Id, employee_id as EmployeeId, company_id as CompanyId,
+                           datetime as DateTime, input_type as InputType
+                    FROM Attendance WHERE id = @Id";
 
                 var entry = await connection.QueryFirstOrDefaultAsync<AttendanceDto>(getEntrySql, new { Id = id });
-
                 if (entry == null)
-                {
                     return NotFound(new { success = false, message = "Attendance entry not found" });
-                }
 
                 string periodKey = GetPeriodKeyFromDate(entry.DateTime);
 
                 var isLocked = await IsSalaryPeriodLocked(periodKey);
                 if (isLocked)
-                {
                     return BadRequest(new { success = false, message = "Cannot delete attendance for locked salary period" });
-                }
 
                 int userId = 0;
-                var userIdClaim = User.FindFirst("UserId")?.Value
-                    ?? User.FindFirst("sub")?.Value;
-                if (!string.IsNullOrEmpty(userIdClaim))
-                {
-                    int.TryParse(userIdClaim, out userId);
-                }
+                var userIdClaim = User.FindFirst("UserId")?.Value ?? User.FindFirst("sub")?.Value;
+                if (!string.IsNullOrEmpty(userIdClaim)) int.TryParse(userIdClaim, out userId);
 
                 string ipAddress = _httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 
@@ -341,10 +316,8 @@ namespace TRIVORA_API.Controllers
                     await TriggerProcessQueue(entry.EmployeeId, periodKey, ipAddress);
                     return Ok(new { success = true, message = "Attendance deleted successfully and recalculation queued" });
                 }
-                else
-                {
-                    return StatusCode(500, new { success = false, message = "Failed to delete attendance entry" });
-                }
+
+                return StatusCode(500, new { success = false, message = "Failed to delete attendance entry" });
             }
             catch (Exception ex)
             {
@@ -353,7 +326,6 @@ namespace TRIVORA_API.Controllers
             }
         }
 
-        // GET: api/attendance/check-period-lock
         [HttpGet("check-period-lock")]
         public async Task<IActionResult> CheckPeriodLock([FromQuery] string periodKey)
         {
@@ -369,7 +341,6 @@ namespace TRIVORA_API.Controllers
             }
         }
 
-        // GET: api/attendance/employee-shift/{employeeId}
         [HttpGet("employee-shift/{employeeId}")]
         public async Task<IActionResult> GetEmployeeShiftInfo(int employeeId)
         {
@@ -390,9 +361,7 @@ namespace TRIVORA_API.Controllers
                                            }).FirstOrDefaultAsync();
 
                 if (employeeShift == null)
-                {
                     return NotFound(new { success = false, message = "Employee not found" });
-                }
 
                 return Ok(new { success = true, data = employeeShift });
             }
@@ -402,7 +371,6 @@ namespace TRIVORA_API.Controllers
             }
         }
 
-        // GET: api/attendance/shift-blocks
         [HttpGet("shift-blocks")]
         public async Task<IActionResult> GetShiftBlocks([FromQuery] int companyId)
         {
@@ -421,7 +389,7 @@ namespace TRIVORA_API.Controllers
                         sb.FirstShiftOutTime,
                         sb.SecondShiftInTime,
                         sb.SecondShiftOutTime,
-                        sb.DayType2  
+                        sb.DayType2
                     })
                     .ToListAsync();
 
@@ -433,7 +401,6 @@ namespace TRIVORA_API.Controllers
             }
         }
 
-        // Get current processing salary period
         [HttpGet("current-period")]
         public async Task<IActionResult> GetCurrentSalaryPeriod()
         {
@@ -443,14 +410,13 @@ namespace TRIVORA_API.Controllers
 
                 var sql = @"
                     SELECT TOP 1 
-                        id as Id, company_id as CompanyId, year as Year, month as Month, 
+                        id as Id, company_id as CompanyId, year as Year, month as Month,
                         payrollStartDate as PayrollStartDate, processing as Processing, locked as Locked
                     FROM Payroll_Process 
                     WHERE locked = 0 
                     ORDER BY payrollStartDate";
 
                 var period = await connection.QueryFirstOrDefaultAsync<PayrollPeriod>(sql);
-
                 if (period == null)
                     return NotFound(new { success = false, message = "No active salary period found" });
 
@@ -462,22 +428,16 @@ namespace TRIVORA_API.Controllers
             }
         }
 
-        // GET: api/attendance/employee-salary-start-date/{employeeId}
         [HttpGet("employee-salary-start-date/{employeeId}")]
         public async Task<IActionResult> GetEmployeeSalaryStartDate(int employeeId)
         {
             try
             {
-                var employee = await _context.Employees
-                    .FirstOrDefaultAsync(e => e.Id == employeeId);
-
+                var employee = await _context.Employees.FirstOrDefaultAsync(e => e.Id == employeeId);
                 if (employee == null)
-                {
                     return NotFound(new { success = false, message = "Employee not found" });
-                }
 
                 int salaryStartDay = 1;
-
                 return Ok(new { success = true, data = salaryStartDay });
             }
             catch (Exception ex)
@@ -486,11 +446,14 @@ namespace TRIVORA_API.Controllers
             }
         }
 
+        // ============================================================
+        // GET TIMESHEET  —  FIXED (loads NightDates + Calendar)
+        // ============================================================
         [HttpGet("timesheet")]
         public async Task<IActionResult> GetTimesheet(
-    [FromQuery] int employeeId,
-    [FromQuery] string year,
-    [FromQuery] string monthName)
+            [FromQuery] int employeeId,
+            [FromQuery] string year,
+            [FromQuery] string monthName)
         {
             try
             {
@@ -509,38 +472,24 @@ namespace TRIVORA_API.Controllers
                     .FirstOrDefaultAsync();
 
                 if (employee == null)
-                {
                     return NotFound(new { success = false, message = "Employee not found" });
-                }
 
                 var companySettings = await _companySettingsService.GetCompanySettingsAsync(employee.Employee.CompanyId);
-
                 if (companySettings == null)
-                {
                     return BadRequest(new { success = false, message = "Company settings not found" });
-                }
 
-                int salaryStartDay;
-                if (!string.IsNullOrEmpty(employee.DepartmentName) &&
-                    employee.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
-                {
-                    salaryStartDay = companySettings.SalaryStartDate_Office;
-                }
-                else
-                {
-                    salaryStartDay = companySettings.SalaryStartDate_Wages;
-                }
+                int salaryStartDay = !string.IsNullOrEmpty(employee.DepartmentName) &&
+                    employee.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase)
+                    ? companySettings.SalaryStartDate_Office
+                    : companySettings.SalaryStartDate_Wages;
 
                 int targetYear = string.IsNullOrEmpty(year) ? DateTime.Now.Year : int.Parse(year);
                 int targetMonth = GetMonthNumberFromName(monthName) ?? DateTime.Now.Month;
 
                 if (targetMonth == 0)
-                {
                     return BadRequest(new { success = false, message = "Invalid month name provided" });
-                }
 
                 DateTime startDate, endDate;
-
                 if (salaryStartDay == 1)
                 {
                     startDate = new DateTime(targetYear, targetMonth, 1);
@@ -551,52 +500,48 @@ namespace TRIVORA_API.Controllers
                     startDate = new DateTime(targetYear, targetMonth, salaryStartDay);
                     var nextMonth = startDate.AddMonths(1);
                     endDate = new DateTime(nextMonth.Year, nextMonth.Month, salaryStartDay).AddDays(-1);
-
                     if (endDate < startDate)
-                    {
                         endDate = new DateTime(targetYear, targetMonth, DateTime.DaysInMonth(targetYear, targetMonth));
-                    }
                 }
 
                 var timesheetData = new List<object>();
                 var currentDate = startDate;
 
-                // ⭐ Load timesheets
+                // ---------- Load existing timesheets ----------
                 var existingTimesheets = await _context.TimeSheets
                     .Where(t => t.EmployeeId == employeeId &&
                         ((t.FirstInDate >= startDate && t.FirstInDate <= endDate) ||
                          (t.SecondInDate >= startDate && t.SecondInDate <= endDate)))
                     .ToListAsync();
 
-                // ⭐ Load shift blocks (pre-saved via ShiftsTimesheet)
+                // ---------- Load saved shift blocks ----------
                 var savedShiftBlocks = await _context.ShiftsTimesheet
-                    .Where(s => s.EmployeeId == employeeId &&
-                                s.Date >= startDate && s.Date <= endDate)
+                    .Where(s => s.EmployeeId == employeeId && s.Date >= startDate && s.Date <= endDate)
                     .ToListAsync();
 
+                // ---------- Shift block DayType2 lookup ----------
                 var shiftBlockDict = await _context.ShiftBlocks
+                    .Where(sb => sb.CompanyId == employee.Employee.CompanyId)
+                    .ToDictionaryAsync(sb => sb.Id, sb => sb.DayType2);
+// ---------- Full ShiftBlock objects for weekly-off lookup ----------
+var shiftBlockDictFull = await _context.ShiftBlocks
     .Where(sb => sb.CompanyId == employee.Employee.CompanyId)
-    .ToDictionaryAsync(sb => sb.Id, sb => sb.DayType2);
-
+    .ToDictionaryAsync(sb => sb.Id);
+                // ---------- Leave records ----------
                 var leaveRecords = await _context.Leave
                     .Where(l => l.EmployeeId == employeeId &&
-                            l.LeaveDate >= startDate && l.LeaveDate <= endDate &&
-                            l.Status == "Approved")
-                    .Select(l => new
-                    {
-                        l.LeaveDate,
-                        l.LeaveType,
-                        l.IsHalfDay,
-                        l.Status
-                    })
+                                l.LeaveDate >= startDate && l.LeaveDate <= endDate &&
+                                l.Status == "Approved")
+                    .Select(l => new { l.LeaveDate, l.LeaveType, l.IsHalfDay, l.Status })
                     .ToListAsync();
 
                 var otherLeaves = await _context.OtherLeaves
                     .Where(ol => ol.EmployeeId == employeeId &&
-                                ol.FromDate <= endDate && ol.ToDate >= startDate &&
-                                (ol.Status == "Approved" || ol.Status == "Pending"))
+                                 ol.FromDate <= endDate && ol.ToDate >= startDate &&
+                                 (ol.Status == "Approved" || ol.Status == "Pending"))
                     .ToListAsync();
 
+                // ---------- Employee default shift ----------
                 var employeeShift = await (from e in _context.Employees
                                            join sb in _context.ShiftBlocks on e.ShiftBlockId equals sb.Id into shiftJoin
                                            from shift in shiftJoin.DefaultIfEmpty()
@@ -609,6 +554,30 @@ namespace TRIVORA_API.Controllers
 
                 string employeeShiftType = employeeShift?.ShiftType ?? "Single";
 
+                // ================================================================
+                // ✅ FIX 1: Load NightDates for this employee & period
+                // ================================================================
+                var nightDates = await _context.NightDates
+                    .Where(n => n.EmployeeId == employeeId &&
+                                n.Date >= startDate && n.Date <= endDate &&
+                                n.IsFullNight)
+                    .Select(n => n.Date)
+                    .ToListAsync();
+
+                var nightDateSet = new HashSet<DateTime>(nightDates.Select(d => d.Date));
+
+                // ================================================================
+                // ✅ FIX 2: Load Calendar for this company & period
+                // ================================================================
+                var calendarRows = await _context.Calendar
+                    .Where(c => c.CompanyId == employee.Employee.CompanyId &&
+                                c.Date >= startDate && c.Date <= endDate)
+                    .ToListAsync();
+
+                var calendarDict = calendarRows
+                    .GroupBy(c => c.Date.Date)
+                    .ToDictionary(g => g.Key, g => g.First());
+
                 while (currentDate <= endDate)
                 {
                     var existingTimesheet = existingTimesheets
@@ -620,23 +589,65 @@ namespace TRIVORA_API.Controllers
                         ? savedShiftBlocks.FirstOrDefault(s => s.Date.Date == currentDate.Date)
                         : null;
 
-                    // Determine which shift block applies to this day
-int? activeShiftBlockId =
-    existingTimesheet?.FirstShiftBlockId
-    ?? savedShiftBlock?.ShiftBlockIdFirstShift
-    ?? employeeShift?.ShiftBlockId;
+                    int? activeShiftBlockId =
+                        existingTimesheet?.FirstShiftBlockId
+                        ?? savedShiftBlock?.ShiftBlockIdFirstShift
+                        ?? employeeShift?.ShiftBlockId;
 
-// Night = DayType2 says "Next day"
-string activeDayType2 = activeShiftBlockId.HasValue && shiftBlockDict.TryGetValue(activeShiftBlockId.Value, out var dt)
-    ? dt
-    : null;
+                    string? activeDayType2 = activeShiftBlockId.HasValue &&
+                        shiftBlockDict.TryGetValue(activeShiftBlockId.Value, out var dt) ? dt : null;
 
-var hasFullNight = string.Equals(activeDayType2, "Next day", StringComparison.OrdinalIgnoreCase);
+                    // ---------- Night: shift block says "Next day" OR NightDates row exists ----------
 
-                    
-                    // ⭐ Default OutDate: next day ONLY if Full Night, otherwise same day
+                    // ---------- Calendar: three holiday types ----------
+                    calendarDict.TryGetValue(currentDate.Date, out var cal);
+
+                
+                    bool isPoya = cal?.IsPoya ?? false;
+                    bool isBankHoliday = cal?.IsBankHoliday ?? false;
+                    bool isMercantile = cal?.IsMercantile ?? false;
+
+                    // ✅ Holiday = any of the three. Full Night is NOT allowed on a holiday.
+                    bool isHoliday = isPoya || isBankHoliday || isMercantile;
+                    // ══════════════════════════════════════════════════════════════
+// Weekly Day Off / Weekly Half Day Off — from the employee's shift block
+// ══════════════════════════════════════════════════════════════
+int? shiftBlockIdForWeeklyOff = employeeShift?.ShiftBlockId ?? activeShiftBlockId;
+
+shiftBlockDictFull.TryGetValue(shiftBlockIdForWeeklyOff ?? 0, out var shiftBlockSettings);
+
+string? firstWeeklyDayOff     = shiftBlockSettings?.FirstWeeklyDayOffDay;
+string? firstWeeklyHalfDayOff = shiftBlockSettings?.FirstWeeklyHalfDayOffDay;
+
+bool isWeeklyDayOff =
+    !string.IsNullOrEmpty(firstWeeklyDayOff) &&
+    currentDate.DayOfWeek.ToString()
+        .Equals(firstWeeklyDayOff, StringComparison.OrdinalIgnoreCase);
+
+bool isWeeklyHalfDayOff =
+    !string.IsNullOrEmpty(firstWeeklyHalfDayOff) &&
+    currentDate.DayOfWeek.ToString()
+        .Equals(firstWeeklyHalfDayOff, StringComparison.OrdinalIgnoreCase);
+
+// ─── Leave permission flags ───
+//   Holiday             → all leave disabled
+//   Weekly Day Off      → all leave disabled
+//   Weekly Half Day Off → full-day disabled, half-day allowed
+bool allowFullDayLeave = !isHoliday && !isWeeklyDayOff && !isWeeklyHalfDayOff;
+bool allowHalfDayLeave = !isHoliday && !isWeeklyDayOff;
+
+                    bool isNightFromShift = string.Equals(activeDayType2, "Next day", StringComparison.OrdinalIgnoreCase);
+                    bool isNightFromTable = nightDateSet.Contains(currentDate.Date);
+                    bool hasFullNight = (isNightFromShift || isNightFromTable) && !isHoliday;
+
+                    // If holiday forces Night off, also force the OutDate to same day
                     var defaultOutDate = hasFullNight ? currentDate.AddDays(1) : currentDate;
 
+                    // ✅ Half Day of Week — no source in DB yet, so always false.
+                    //    If you add a source later, set it here.
+                    // ✅ Half Day of Week — from the shift block's FirstWeeklyHalfDayOffDay
+bool isHalfDayOfWeek = isWeeklyHalfDayOff;
+                    // ---------- Leaves on this day ----------
                     var dayLeaves = leaveRecords
                         .Where(l => l.LeaveDate.Date == currentDate.Date)
                         .ToList();
@@ -652,18 +663,24 @@ var hasFullNight = string.Equals(activeDayType2, "Next day", StringComparison.Or
                     var hasSickHalfLeave = dayLeaves.Any(l => l.LeaveType == "Sick" && l.IsHalfDay);
 
                     var otherLeaveType = "-";
+
                     if (hasFullNight)
-{
-    hasAnnualHalfLeave = false;
-    hasCasualHalfLeave = false;
-    hasSickHalfLeave = false;
-}
+                    {
+                        hasAnnualHalfLeave = false;
+                        hasCasualHalfLeave = false;
+                        hasSickHalfLeave = false;
+                    }
+
                     if (isBlockedByOtherLeave)
                     {
                         var blockingLeave = otherLeaves.FirstOrDefault(ol =>
                             currentDate >= ol.FromDate && currentDate <= ol.ToDate);
                         otherLeaveType = blockingLeave?.LeaveType ?? "Blocked";
                     }
+                    TimeSpan otDoubleCombined =
+                        (existingTimesheet?.OtHoursPoya ?? TimeSpan.Zero) +
+                        (existingTimesheet?.OtHoursBankHoliday ?? TimeSpan.Zero) +
+                        (existingTimesheet?.OtHoursSunday ?? TimeSpan.Zero);
 
                     var dayData = new
                     {
@@ -691,7 +708,7 @@ var hasFullNight = string.Equals(activeDayType2, "Next day", StringComparison.Or
 
                                 LateHours = existingTimesheet.LateHours,
                                 OtHoursNormal = existingTimesheet.OtHoursNormal,
-                                OtHoursDouble = existingTimesheet.OtHoursPoya,
+                                OtHoursDouble = (existingTimesheet.OtHoursPoya + existingTimesheet.OtHoursBankHoliday + existingTimesheet.OtHoursSunday),
                                 PayType = (string?)existingTimesheet.PayType,
                                 FromShiftBlock = false
                             }
@@ -725,19 +742,43 @@ var hasFullNight = string.Equals(activeDayType2, "Next day", StringComparison.Or
                         ActiveLeave = dayLeaves,
                         IsBlocked = isBlockedByOtherLeave,
                         OtherLeaveType = otherLeaveType,
+
+                        // Night
                         HasFullNight = hasFullNight,
+                        NightLockedByShift = isNightFromShift,
+
+                        // Holiday types (frontend uses these for (P/H), (B/H), (M/H))
+                        IsPoya = isPoya,
+                        IsBankHoliday = isBankHoliday,
+                        IsMercantile = isMercantile,
+                        IsHoliday = isHoliday,            // true when any of the three is true
+                        IsHalfDayOfWeek = isHalfDayOfWeek,// still false until you add a source
+// ─── Weekly off info (NEW) ───
+IsWeeklyDayOff     = isWeeklyDayOff,
+IsWeeklyHalfDayOff = isWeeklyHalfDayOff,
+
+// ─── Leave permission flags (NEW) ───
+AllowFullDayLeave  = allowFullDayLeave,
+AllowHalfDayLeave  = allowHalfDayLeave,
+                        // Leave flags
                         HasAnnualLeave = hasAnnualLeave,
                         HasAnnualHalfLeave = hasAnnualHalfLeave,
                         HasCasualLeave = hasCasualLeave,
                         HasCasualHalfLeave = hasCasualHalfLeave,
                         HasSickLeave = hasSickLeave,
                         HasSickHalfLeave = hasSickHalfLeave,
+
                         WorkHours = existingTimesheet?.WorkHours?.ToString(@"hh\:mm") ?? "00:00",
                         LateHours = existingTimesheet?.LateHours?.ToString(@"hh\:mm") ?? "00:00",
                         OtNormal = existingTimesheet?.OtHoursNormal?.ToString(@"hh\:mm") ?? "00:00",
-                        OtDouble = existingTimesheet?.OtHoursPoya?.ToString(@"hh\:mm") ?? "00:00",
-                        IsWeekend = currentDate.DayOfWeek == DayOfWeek.Saturday || currentDate.DayOfWeek == DayOfWeek.Sunday,
-                        IsHoliday = false,
+                        OtDouble = (
+    (existingTimesheet?.OtHoursPoya ?? TimeSpan.Zero) +
+    (existingTimesheet?.OtHoursBankHoliday ?? TimeSpan.Zero) +
+    (existingTimesheet?.OtHoursSunday ?? TimeSpan.Zero)
+).ToString(@"hh\:mm"),
+
+                        IsWeekend = currentDate.DayOfWeek == DayOfWeek.Saturday ||
+                                    currentDate.DayOfWeek == DayOfWeek.Sunday,
                         SalaryStartDayUsed = salaryStartDay
                     };
 
@@ -778,11 +819,8 @@ var hasFullNight = string.Equals(activeDayType2, "Next day", StringComparison.Or
             }
         }
 
-
-
         // ============================================================
         // SAVE / UPDATE SHIFT BLOCK for a single day
-        // POST /api/attendance/shift-block
         // ============================================================
         [HttpPost("shift-block")]
         public async Task<IActionResult> SaveShiftBlock([FromBody] SaveShiftBlockRequest request)
@@ -800,20 +838,17 @@ var hasFullNight = string.Equals(activeDayType2, "Next day", StringComparison.Or
             {
                 using var connection = new SqlConnection(_connectionString);
 
-                // ---------- UPSERT ----------
-                // If a row exists for (EmployeeId, Date) → UPDATE the shift columns.
-                // Else → INSERT a new row.
                 var sql = @"
-            MERGE ShiftsTimesheet AS target
-            USING (SELECT @EmployeeId AS EmployeeId, @Date AS [Date]) AS src
-                ON target.EmployeeId = src.EmployeeId AND target.[Date] = src.[Date]
-            WHEN MATCHED THEN
-                UPDATE SET
-                    ShiftBlockIdFirstShift  = @FirstShift,
-                    ShiftBlockIdSecondShift = @SecondShift
-            WHEN NOT MATCHED THEN
-                INSERT (EmployeeId, [Date], ShiftBlockIdFirstShift, ShiftBlockIdSecondShift)
-                VALUES (@EmployeeId, @Date, @FirstShift, @SecondShift);";
+                    MERGE ShiftsTimesheet AS target
+                    USING (SELECT @EmployeeId AS EmployeeId, @Date AS [Date]) AS src
+                        ON target.EmployeeId = src.EmployeeId AND target.[Date] = src.[Date]
+                    WHEN MATCHED THEN
+                        UPDATE SET
+                            ShiftBlockIdFirstShift  = @FirstShift,
+                            ShiftBlockIdSecondShift = @SecondShift
+                    WHEN NOT MATCHED THEN
+                        INSERT (EmployeeId, [Date], ShiftBlockIdFirstShift, ShiftBlockIdSecondShift)
+                        VALUES (@EmployeeId, @Date, @FirstShift, @SecondShift);";
 
                 var rows = await connection.ExecuteAsync(sql, new
                 {
@@ -821,15 +856,14 @@ var hasFullNight = string.Equals(activeDayType2, "Next day", StringComparison.Or
                     Date = date.Date,
                     FirstShift = request.ShiftBlockIdFirstShift > 0 ? (int?)request.ShiftBlockIdFirstShift : null,
                     SecondShift = request.ShiftBlockIdSecondShift.HasValue && request.ShiftBlockIdSecondShift > 0
-                                                ? (int?)request.ShiftBlockIdSecondShift
-                                                : null
+                        ? (int?)request.ShiftBlockIdSecondShift
+                        : null
                 });
 
                 _logger.LogInformation(
                     "ShiftTimesheet saved — employee {EmployeeId}, date {Date}, rows {Rows}",
                     request.EmployeeId, date.Date, rows);
 
-                // ---------- Trigger process queue ----------
                 if (!string.IsNullOrWhiteSpace(request.PeriodKey))
                 {
                     var ipAddress = HttpContext?.Connection?.RemoteIpAddress?.ToString() ?? "Unknown";
@@ -853,10 +887,6 @@ var hasFullNight = string.Equals(activeDayType2, "Next day", StringComparison.Or
             }
         }
 
-        // ============================================================
-        // GET shift block for a single day
-        // GET /api/attendance/shift-block?employeeId=1&date=2025-04-15
-        // ============================================================
         [HttpGet("shift-block")]
         public async Task<IActionResult> GetShiftBlock([FromQuery] int employeeId, [FromQuery] string date)
         {
@@ -871,27 +901,20 @@ var hasFullNight = string.Equals(activeDayType2, "Next day", StringComparison.Or
                 using var connection = new SqlConnection(_connectionString);
 
                 var row = await connection.QueryFirstOrDefaultAsync<dynamic>(@"
-            SELECT
-                EmployeeId              AS EmployeeId,
-                [Date]                  AS [Date],
-                ShiftBlockIdFirstShift  AS ShiftBlockIdFirstShift,
-                ShiftBlockIdSecondShift AS ShiftBlockIdSecondShift
-            FROM ShiftsTimesheet
-            WHERE EmployeeId = @EmployeeId AND [Date] = @Date",
+                    SELECT
+                        EmployeeId              AS EmployeeId,
+                        [Date]                  AS [Date],
+                        ShiftBlockIdFirstShift  AS ShiftBlockIdFirstShift,
+                        ShiftBlockIdSecondShift AS ShiftBlockIdSecondShift
+                    FROM ShiftsTimesheet
+                    WHERE EmployeeId = @EmployeeId AND [Date] = @Date",
                     new { EmployeeId = employeeId, Date = d.Date });
 
                 if (row == null)
                 {
-                    // ⭐ Return a structured "no data" response the frontend can handle
-                    return Ok(new
-                    {
-                        success = true,
-                        data = (object)null,
-                        hasData = false
-                    });
+                    return Ok(new { success = true, data = (object)null, hasData = false });
                 }
 
-                // ⭐ Project to camelCase explicitly
                 return Ok(new
                 {
                     success = true,
@@ -912,20 +935,9 @@ var hasFullNight = string.Equals(activeDayType2, "Next day", StringComparison.Or
             }
         }
 
-
         // ============================================================
-        // TOGGLE Night Date for an employee + day
-        // POST /api/attendance/night-date
+        // TOGGLE Night Date
         // ============================================================
-        public class NightDateRequest
-        {
-            public int EmployeeId { get; set; }
-            public string Date { get; set; }         // 'YYYY-MM-DD'
-            public bool IsFullNight { get; set; }
-            public string? PeriodKey { get; set; }   // '2025-April' → triggers queue
-            public string? Remarks { get; set; }
-        }
-
         [HttpPost("night-date")]
         public async Task<IActionResult> SaveNightDate([FromBody] NightDateRequest request)
         {
@@ -945,16 +957,15 @@ var hasFullNight = string.Equals(activeDayType2, "Next day", StringComparison.Or
 
                 if (request.IsFullNight)
                 {
-                    // UPSERT: insert or update the row
                     var sql = @"
-                MERGE NightDates AS target
-                USING (SELECT @EmployeeId AS EmployeeId, @Date AS [Date]) AS src
-                    ON target.EmployeeId = src.EmployeeId AND target.[Date] = src.[Date]
-                WHEN MATCHED THEN
-                    UPDATE SET IsFullNight = 1, Remarks = @Remarks
-                WHEN NOT MATCHED THEN
-                    INSERT (EmployeeId, [Date], IsFullNight, Remarks, CreatedDate, CreatedBy)
-                    VALUES (@EmployeeId, @Date, 1, @Remarks, GETDATE(), @UserId);";
+                        MERGE NightDates AS target
+                        USING (SELECT @EmployeeId AS EmployeeId, @Date AS [Date]) AS src
+                            ON target.EmployeeId = src.EmployeeId AND target.[Date] = src.[Date]
+                        WHEN MATCHED THEN
+                            UPDATE SET IsFullNight = 1, Remarks = @Remarks
+                        WHEN NOT MATCHED THEN
+                            INSERT (EmployeeId, [Date], IsFullNight, Remarks, CreatedDate, CreatedBy)
+                            VALUES (@EmployeeId, @Date, 1, @Remarks, GETDATE(), @UserId);";
 
                     await connection.ExecuteAsync(sql, new
                     {
@@ -966,13 +977,11 @@ var hasFullNight = string.Equals(activeDayType2, "Next day", StringComparison.Or
                 }
                 else
                 {
-                    // Unchecked → delete the row
                     await connection.ExecuteAsync(
                         "DELETE FROM NightDates WHERE EmployeeId = @EmployeeId AND [Date] = @Date",
                         new { EmployeeId = request.EmployeeId, Date = date.Date });
                 }
 
-                // Trigger process queue
                 if (!string.IsNullOrWhiteSpace(request.PeriodKey))
                 {
                     var ip = HttpContext?.Connection?.RemoteIpAddress?.ToString() ?? "Unknown";
@@ -995,19 +1004,6 @@ var hasFullNight = string.Equals(activeDayType2, "Next day", StringComparison.Or
             }
         }
 
-        // ============================================================
-        // REQUEST MODEL
-        // ============================================================
-        public class SaveShiftBlockRequest
-        {
-            public int EmployeeId { get; set; }
-            public string Date { get; set; }                          // 'YYYY-MM-DD'
-            public int ShiftBlockIdFirstShift { get; set; }           // Single-shift employees → this
-            public int? ShiftBlockIdSecondShift { get; set; }         // Multi-shift employees → this
-            public string PeriodKey { get; set; }                     // '2025-April' → for TriggerProcessQueue
-        }
-
-
         #region Helper Methods
 
         private async Task LogAttendanceAction(object entry, string action, int userId, string ipAddress)
@@ -1018,34 +1014,17 @@ var hasFullNight = string.Equals(activeDayType2, "Next day", StringComparison.Or
 
                 var sql = @"
                     INSERT INTO AttendanceManualLog (
-                        EmployeeId,
-                        Action,
-                        RequestData,
-                        ResponseStatus,
-                        Timestamp,
-                        IpAddress,
-                        UserId
+                        EmployeeId, Action, RequestData, ResponseStatus,
+                        Timestamp, IpAddress, UserId
                     ) VALUES (
-                        @EmployeeId,
-                        @Action,
-                        @RequestData,
-                        'Success',
-                        GETDATE(),
-                        @IpAddress,
-                        @UserId
-                    )";
+                        @EmployeeId, @Action, @RequestData, 'Success',
+                        GETDATE(), @IpAddress, @UserId)";
 
                 string requestData = System.Text.Json.JsonSerializer.Serialize(entry);
                 int employeeId = 0;
 
-                if (entry is AttendanceDto dto)
-                {
-                    employeeId = dto.EmployeeId;
-                }
-                else if (entry is ManualAttendanceEntryDto manual)
-                {
-                    employeeId = manual.EmployeeId;
-                }
+                if (entry is AttendanceDto dto) employeeId = dto.EmployeeId;
+                else if (entry is ManualAttendanceEntryDto manual) employeeId = manual.EmployeeId;
 
                 await connection.ExecuteAsync(sql, new
                 {
@@ -1061,137 +1040,138 @@ var hasFullNight = string.Equals(activeDayType2, "Next day", StringComparison.Or
                 _logger.LogError(ex, "Error logging attendance action to AttendanceManualLog");
             }
         }
+                // ===== Validation Helper: Weekly Day Off / Half Day Off =====
+        private (bool IsValid, string? ErrorMessage) ValidateGeneralSettings(ShiftBlock shiftBlock)
+        {
+            if (!string.IsNullOrWhiteSpace(shiftBlock.FirstWeeklyDayOffDay) &&
+                !string.IsNullOrWhiteSpace(shiftBlock.FirstWeeklyHalfDayOffDay) &&
+                string.Equals(shiftBlock.FirstWeeklyDayOffDay.Trim(),
+                              shiftBlock.FirstWeeklyHalfDayOffDay.Trim(),
+                              StringComparison.OrdinalIgnoreCase))
+            {
+                return (false, "First Weekly Day Off and First Weekly Half Day Off cannot be on the same day.");
+            }
 
+            // NEW: Late Deduction Half Day requires a Half Day Off Day to be set
+            if (shiftBlock.IsLateDeductionHalfDay &&
+                string.IsNullOrWhiteSpace(shiftBlock.FirstWeeklyHalfDayOffDay))
+            {
+                return (false, "Late Deduction for General Half Day requires a Weekly Half Day Off Day to be selected.");
+            }
+
+            return (true, null);
+        }  
         private async Task TriggerProcessQueue(int employeeId, string periodKey, string ipAddress = "Unknown")
         {
             try
             {
                 using var connection = new SqlConnection(_connectionString);
 
-                // Check if there's already a PENDING record (processing = 0 AND process_end = 0)
-                var pendingCheckSql = @"
-            SELECT COUNT(*) 
-            FROM process_queue 
-            WHERE emp_systemID = @EmployeeId 
-                AND period_ = @PeriodKey 
-                AND processing = 0 
-                AND process_end = 0";
+                // ⚠️ Stale timeout: if a row has been in "processing = 1, process_end = 0"
+                //    for more than 10 minutes, consider the worker crashed and release it.
+                const int staleMinutes = 10;
 
-                var pendingCount = await connection.ExecuteScalarAsync<int>(pendingCheckSql, new { EmployeeId = employeeId, PeriodKey = periodKey });
+                // 1) Clear stale processing rows
+                var clearStaleSql = @"
+            UPDATE process_queue
+            SET 
+                processing = 1,
+                process_end = 1,
+                processEnd_stageTwo_date = GETDATE()
+            WHERE emp_systemID = @EmployeeId
+              AND period_ = @PeriodKey
+              AND processing = 1
+              AND process_end = 0
+              AND processStart_date IS NOT NULL
+              AND DATEDIFF(MINUTE, processStart_date, GETDATE()) > @StaleMinutes";
+
+                var staleCleared = await connection.ExecuteAsync(clearStaleSql, new
+                {
+                    EmployeeId = employeeId,
+                    PeriodKey = periodKey,
+                    StaleMinutes = staleMinutes
+                });
+
+                if (staleCleared > 0)
+                {
+                    _logger.LogWarning(
+                        "Cleared {Count} stale processing row(s) for employee {EmployeeId}, period {PeriodKey} (older than {Minutes} min)",
+                        staleCleared, employeeId, periodKey, staleMinutes);
+                }
+
+                // 2) Skip if there's still an actively pending row (processing=0, end=0)
+                var pendingCount = await connection.ExecuteScalarAsync<int>(@"
+            SELECT COUNT(*) FROM process_queue
+            WHERE emp_systemID = @EmployeeId
+              AND period_ = @PeriodKey
+              AND processing = 0
+              AND process_end = 0",
+                    new { EmployeeId = employeeId, PeriodKey = periodKey });
 
                 if (pendingCount > 0)
                 {
-                    _logger.LogInformation($"Pending process queue record already exists for employee {employeeId}, period {periodKey}. Skipping new insert.");
+                    _logger.LogInformation(
+                        "Pending queue row already exists for employee {EmployeeId}, period {PeriodKey}. Skipping insert.",
+                        employeeId, periodKey);
                     return;
                 }
 
-                // Check if there's already a PROCESSING record (processing = 1 AND process_end = 0)
-                var processingCheckSql = @"
-            SELECT COUNT(*) 
-            FROM process_queue 
-            WHERE emp_systemID = @EmployeeId 
-                AND period_ = @PeriodKey 
-                AND processing = 1 
-                AND process_end = 0";
-
-                var processingCount = await connection.ExecuteScalarAsync<int>(processingCheckSql, new { EmployeeId = employeeId, PeriodKey = periodKey });
+                // 3) Skip if there's still an ACTIVE (non-stale) processing row (processing=1, end=0)
+                var processingCount = await connection.ExecuteScalarAsync<int>(@"
+            SELECT COUNT(*) FROM process_queue
+            WHERE emp_systemID = @EmployeeId
+              AND period_ = @PeriodKey
+              AND processing = 1
+              AND process_end = 0",
+                    new { EmployeeId = employeeId, PeriodKey = periodKey });
 
                 if (processingCount > 0)
                 {
-                    _logger.LogInformation($"Processing record already exists for employee {employeeId}, period {periodKey}. Skipping new insert.");
+                    _logger.LogInformation(
+                        "Active processing row exists for employee {EmployeeId}, period {PeriodKey}. Skipping insert.",
+                        employeeId, periodKey);
                     return;
                 }
 
-                // Get the employee's emp_empID (EmployeeNo) from the Employees table
-                var getEmpIdSql = "SELECT EmployeeNo FROM Employees WHERE Id = @EmployeeId";
-                var empEmpId = await connection.ExecuteScalarAsync<string>(getEmpIdSql, new { EmployeeId = employeeId }) ?? employeeId.ToString();
+                // 4) Nothing pending, nothing processing → insert new row
+                var empEmpId = await connection.ExecuteScalarAsync<string>(
+                    "SELECT EmployeeNo FROM Employees WHERE Id = @EmployeeId",
+                    new { EmployeeId = employeeId }) ?? employeeId.ToString();
 
                 int userId = 0;
-                var userIdClaim = User?.FindFirst("UserId")?.Value
-                    ?? User?.FindFirst("sub")?.Value;
-                if (!string.IsNullOrEmpty(userIdClaim))
-                {
-                    int.TryParse(userIdClaim, out userId);
-                }
+                var userIdClaim = User?.FindFirst("UserId")?.Value ?? User?.FindFirst("sub")?.Value;
+                if (!string.IsNullOrEmpty(userIdClaim)) int.TryParse(userIdClaim, out userId);
 
-                var sql = @"
+                var insertSql = @"
             INSERT INTO process_queue (
-                emp_systemID,
-                emp_empID,
-                period_,
-                process_status,
-                processing,
-                process_end,
-                request_date,
-                request_ip,
-                requset_from,
-                processStart_date,
-                processEnd_stageOne_date,
-                processEnd_stageTwo_date,
-                request_by
-            ) VALUES (
-                @EmployeeId,
-                @EmpEmpId,
-                @PeriodKey,
-                0,  -- 0 = Pending
-                0,  -- processing = 0 (not processing yet)
-                0,  -- process_end = 0 (not completed)
-                GETDATE(),
-                @IpAddress,
-                'Attendance Module',
-                GETDATE(),
-                GETDATE(),
-                GETDATE(),
-                @UserId
-            )";
+                emp_systemID, emp_empID, period_, process_status,
+                processing, process_end, request_date, request_ip,
+                requset_from, processStart_date, processEnd_stageOne_date,
+                processEnd_stageTwo_date, request_by)
+            VALUES (
+                @EmployeeId, @EmpEmpId, @PeriodKey, 0,
+                0, 0, GETDATE(), @IpAddress,
+                'Attendance Module', GETDATE(), GETDATE(),
+                GETDATE(), @UserId)";
 
-                var parameters = new
+                await connection.ExecuteAsync(insertSql, new
                 {
                     EmployeeId = employeeId,
                     EmpEmpId = empEmpId,
                     PeriodKey = periodKey,
                     IpAddress = ipAddress,
                     UserId = userId > 0 ? userId.ToString() : "System"
-                };
-
-                int rowsAffected = await connection.ExecuteAsync(sql, parameters);
-                _logger.LogInformation($"Inserted new process queue record for employee {employeeId}, period {periodKey}, rows affected: {rowsAffected}");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error triggering process queue for employee {EmployeeId}, period {PeriodKey}",
-                    employeeId, periodKey);
-            }
-        }
-        // GET: api/processqueue/status
-        [HttpGet("status")]
-        public async Task<IActionResult> GetProcessStatus([FromQuery] int employeeId, [FromQuery] string period)
-        {
-            try
-            {
-                using var connection = new SqlConnection(_connectionString);
-
-                // Simple check - just count if there are any active processing records
-                var sql = @"
-            SELECT COUNT(1) 
-            FROM process_queue 
-            WHERE emp_systemID = @EmployeeId 
-                AND period_ = @Period
-                AND (process_end = 0 OR processing = 1)";
-
-                var activeCount = await connection.ExecuteScalarAsync<int>(sql, new { EmployeeId = employeeId, Period = period });
-
-                // Return simple response - just the status
-                return Ok(new
-                {
-                    success = true,
-                    isProcessing = activeCount > 0  // true if any record is still processing
                 });
+
+                _logger.LogInformation(
+                    "Inserted new process queue row for employee {EmployeeId} (emp_empID={EmpEmpId}), period {PeriodKey}",
+                    employeeId, empEmpId, periodKey);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error checking process status for employee {EmployeeId}, period {Period}", employeeId, period);
-                return StatusCode(500, new { success = false, message = ex.Message });
+                _logger.LogError(ex,
+                    "Error triggering process queue for employee {EmployeeId}, period {PeriodKey}",
+                    employeeId, periodKey);
             }
         }
         private async Task<bool> IsSalaryPeriodLocked(string periodKey)
@@ -1230,7 +1210,8 @@ var hasFullNight = string.Equals(activeDayType2, "Next day", StringComparison.Or
                     FROM Payroll_Process 
                     WHERE year = @Year AND month = @Month";
 
-                var locked = await connection.QueryFirstOrDefaultAsync<bool?>(sql, new { Year = year, Month = GetMonthName(month) });
+                var locked = await connection.QueryFirstOrDefaultAsync<bool?>(
+                    sql, new { Year = year, Month = GetMonthName(month) });
 
                 return locked ?? false;
             }
@@ -1272,22 +1253,17 @@ var hasFullNight = string.Equals(activeDayType2, "Next day", StringComparison.Or
             };
 
             if (monthMap.TryGetValue(monthName.Trim(), out int monthNumber))
-            {
                 return monthNumber;
-            }
 
             if (int.TryParse(monthName, out int parsedMonth) && parsedMonth >= 1 && parsedMonth <= 12)
-            {
                 return parsedMonth;
-            }
 
             return 0;
         }
 
         private int? GetMonthNumberFromName(string monthName)
         {
-            if (string.IsNullOrEmpty(monthName))
-                return null;
+            if (string.IsNullOrEmpty(monthName)) return null;
 
             var months = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
             {
@@ -1306,14 +1282,10 @@ var hasFullNight = string.Equals(activeDayType2, "Next day", StringComparison.Or
             };
 
             if (months.TryGetValue(monthName.Trim(), out int monthNumber))
-            {
                 return monthNumber;
-            }
 
             if (int.TryParse(monthName, out int parsedMonth) && parsedMonth >= 1 && parsedMonth <= 12)
-            {
                 return parsedMonth;
-            }
 
             return null;
         }
