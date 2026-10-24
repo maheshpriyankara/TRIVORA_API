@@ -637,11 +637,10 @@ bool allowFullDayLeave = !isHoliday && !isWeeklyDayOff && !isWeeklyHalfDayOff;
 bool allowHalfDayLeave = !isHoliday && !isWeeklyDayOff;
 
                     bool isNightFromShift = string.Equals(activeDayType2, "Next day", StringComparison.OrdinalIgnoreCase);
-                    bool isNightFromTable = nightDateSet.Contains(currentDate.Date);
-                    bool hasFullNight = (isNightFromShift || isNightFromTable) && !isHoliday;
+bool isNightFromTable = nightDateSet.Contains(currentDate.Date);
+bool hasFullNight = isNightFromShift || isNightFromTable;   // ← removed !isHoliday
 
-                    // If holiday forces Night off, also force the OutDate to same day
-                    var defaultOutDate = hasFullNight ? currentDate.AddDays(1) : currentDate;
+var defaultOutDate = hasFullNight ? currentDate.AddDays(1) : currentDate;
 
                     // ✅ Half Day of Week — no source in DB yet, so always false.
                     //    If you add a source later, set it here.
@@ -680,7 +679,9 @@ bool isHalfDayOfWeek = isWeeklyHalfDayOff;
                     TimeSpan otDoubleCombined =
                         (existingTimesheet?.OtHoursPoya ?? TimeSpan.Zero) +
                         (existingTimesheet?.OtHoursBankHoliday ?? TimeSpan.Zero) +
-                        (existingTimesheet?.OtHoursSunday ?? TimeSpan.Zero);
+                        (existingTimesheet?.OtHoursSunday ?? TimeSpan.Zero)+
+                        (existingTimesheet?.OtHoursWeeklyDayOff ?? TimeSpan.Zero)+
+                        (existingTimesheet?.OtHoursWeeklyHalfDayOff ?? TimeSpan.Zero);
 
                     var dayData = new
                     {
@@ -708,7 +709,7 @@ bool isHalfDayOfWeek = isWeeklyHalfDayOff;
 
                                 LateHours = existingTimesheet.LateHours,
                                 OtHoursNormal = existingTimesheet.OtHoursNormal,
-                                OtHoursDouble = (existingTimesheet.OtHoursPoya + existingTimesheet.OtHoursBankHoliday + existingTimesheet.OtHoursSunday),
+                                OtHoursDouble = (existingTimesheet.OtHoursPoya + existingTimesheet.OtHoursBankHoliday + existingTimesheet.OtHoursSunday + existingTimesheet.OtHoursWeeklyDayOff + existingTimesheet.OtHoursWeeklyHalfDayOff),
                                 PayType = (string?)existingTimesheet.PayType,
                                 FromShiftBlock = false
                             }
@@ -774,7 +775,9 @@ AllowHalfDayLeave  = allowHalfDayLeave,
                         OtDouble = (
     (existingTimesheet?.OtHoursPoya ?? TimeSpan.Zero) +
     (existingTimesheet?.OtHoursBankHoliday ?? TimeSpan.Zero) +
-    (existingTimesheet?.OtHoursSunday ?? TimeSpan.Zero)
+    (existingTimesheet?.OtHoursSunday ?? TimeSpan.Zero) +
+    (existingTimesheet?.OtHoursWeeklyDayOff ?? TimeSpan.Zero) +
+    (existingTimesheet?.OtHoursWeeklyHalfDayOff ?? TimeSpan.Zero)
 ).ToString(@"hh\:mm"),
 
                         IsWeekend = currentDate.DayOfWeek == DayOfWeek.Saturday ||
@@ -886,7 +889,221 @@ AllowHalfDayLeave  = allowHalfDayLeave,
                 return StatusCode(500, new { success = false, message = ex.Message });
             }
         }
+        // ============================================================
+// GET /api/attendance/summary — aggregated stats for a period
+// ============================================================
+[HttpGet("summary")]
+public async Task<IActionResult> GetTimesheetSummary(
+    [FromQuery] int employeeId,
+    [FromQuery] string year,
+    [FromQuery] string monthName)
+{
+    try
+    {
+        if (employeeId <= 0)
+            return BadRequest(new { success = false, message = "employeeId is required" });
 
+        var employee = await _context.Employees
+            .AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Id == employeeId);
+
+        if (employee == null)
+            return NotFound(new { success = false, message = "Employee not found" });
+
+        var companySettings = await _companySettingsService.GetCompanySettingsAsync(employee.CompanyId);
+        if (companySettings == null)
+            return BadRequest(new { success = false, message = "Company settings not found" });
+
+        var department = await _context.Company_Departments
+            .AsNoTracking()
+            .FirstOrDefaultAsync(d => d.Id == employee.DepartmentId);
+
+        int salaryStartDay = department != null &&
+            department.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase)
+            ? companySettings.SalaryStartDate_Office
+            : companySettings.SalaryStartDate_Wages;
+
+        int targetYear  = string.IsNullOrEmpty(year) ? DateTime.Now.Year : int.Parse(year);
+        int targetMonth = GetMonthNumberFromName(monthName) ?? DateTime.Now.Month;
+        if (targetMonth == 0)
+            return BadRequest(new { success = false, message = "Invalid month name" });
+
+        DateTime startDate, endDate;
+        if (salaryStartDay == 1)
+        {
+            startDate = new DateTime(targetYear, targetMonth, 1);
+            endDate   = new DateTime(targetYear, targetMonth, DateTime.DaysInMonth(targetYear, targetMonth));
+        }
+        else
+        {
+            startDate = new DateTime(targetYear, targetMonth, salaryStartDay);
+            var nextMonth = startDate.AddMonths(1);
+            endDate   = new DateTime(nextMonth.Year, nextMonth.Month, salaryStartDay).AddDays(-1);
+        }
+
+        using var connection = new SqlConnection(_connectionString);
+
+        // ============================================================
+        // 1) Working days — FirstInTime AND FirstOutTime both present
+        //    DayType must not be 'No Pay' or 'No Pay - Half'
+        // ============================================================
+        const string workingDaysSql = @"
+            SELECT COUNT(*)
+            FROM TimeSheet
+            WHERE EmployeeId = @EmployeeId
+              AND FirstInDate  >= @StartDate
+              AND FirstInDate  <= @EndDate
+              AND FirstInTime  IS NOT NULL
+              AND FirstOutTime IS NOT NULL
+              AND (DayType IS NULL
+                   OR DayType NOT IN ('No Pay', 'No Pay - Half'))";
+
+        var totalWorkingDays = await connection.ExecuteScalarAsync<int>(
+            workingDaysSql, new { EmployeeId = employeeId, StartDate = startDate, EndDate = endDate });
+
+        // ============================================================
+        // 2) No-Pay count — 'No Pay' = 1, 'No Pay - Half' = 0.5
+        // ============================================================
+        const string noPaySql = @"
+            SELECT ISNULL(SUM(
+                CASE WHEN DayType = 'No Pay'      THEN 1.0
+                     WHEN DayType = 'No Pay - Half' THEN 0.5
+                     ELSE 0.0 END), 0)
+            FROM TimeSheet
+            WHERE EmployeeId = @EmployeeId
+              AND FirstInDate >= @StartDate
+              AND FirstInDate <= @EndDate
+              AND DayType IN ('No Pay', 'No Pay - Half')";
+
+        var totalNoPayCount = await connection.ExecuteScalarAsync<decimal?>(
+            noPaySql, new { EmployeeId = employeeId, StartDate = startDate, EndDate = endDate }) ?? 0m;
+
+        // ============================================================
+        // 3) Leave taken — approved leaves in this period
+        // ============================================================
+        const string leaveTakenSql = @"
+            SELECT ISNULL(SUM(CASE WHEN IsHalfDay = 1 THEN 0.5 ELSE 1.0 END), 0)
+            FROM [Leave]
+            WHERE EmployeeId = @EmployeeId
+              AND LeaveDate >= @StartDate
+              AND LeaveDate <= @EndDate
+              AND Status = 'Approved'";
+
+        var totalLeaveTaken = await connection.ExecuteScalarAsync<decimal?>(
+            leaveTakenSql, new { EmployeeId = employeeId, StartDate = startDate, EndDate = endDate }) ?? 0m;
+
+        // ============================================================
+        // 4) Pay-cut hours — sum LateHours (TimeSpan → hours)
+        // ============================================================
+        const string payCutSql = @"
+            SELECT ISNULL(SUM(
+                CAST(DATEDIFF(MINUTE, CAST('00:00:00' AS TIME), LateHours) AS DECIMAL(18,4)) / 60.0
+            ), 0)
+            FROM TimeSheet
+            WHERE EmployeeId = @EmployeeId
+              AND FirstInDate >= @StartDate
+              AND FirstInDate <= @EndDate
+              AND LateHours IS NOT NULL";
+
+        var totalPayCutHours = await connection.ExecuteScalarAsync<decimal?>(
+            payCutSql, new { EmployeeId = employeeId, StartDate = startDate, EndDate = endDate }) ?? 0m;
+
+        // ============================================================
+        // 5) Working hours — sum WorkHours (TimeSpan → hours)
+        // ============================================================
+        const string workingHoursSql = @"
+            SELECT ISNULL(SUM(
+                CAST(DATEDIFF(MINUTE, CAST('00:00:00' AS TIME), WorkHours) AS DECIMAL(18,4)) / 60.0
+            ), 0)
+            FROM TimeSheet
+            WHERE EmployeeId = @EmployeeId
+              AND FirstInDate >= @StartDate
+              AND FirstInDate <= @EndDate
+              AND WorkHours IS NOT NULL";
+
+        var totalWorkingHours = await connection.ExecuteScalarAsync<decimal?>(
+            workingHoursSql, new { EmployeeId = employeeId, StartDate = startDate, EndDate = endDate }) ?? 0m;
+
+        // ============================================================
+        // 6) OT summary — six buckets (normal, weekly-day-off,
+        //    weekly-half-day-off, poya, mercantile, bank-holiday)
+        //
+        // NOTE: Your TimeSheet entity has these columns:
+        //   OtHoursNormal, OtHoursPoya, OtHoursBankHoliday,
+        //   OtHoursSunday, OtHoursWeeklyDayOff, OtHoursWeeklyHalfDayOff.
+        // The Mercantile column doesn't exist yet.
+        // If you don't store Mercantile separately, it's included
+        // inside OtHoursBankHoliday — leave Mercantile as 0.
+        // ============================================================
+        const string otSql = @"
+            SELECT
+              ISNULL(SUM(CAST(DATEDIFF(MINUTE, CAST('00:00:00' AS TIME), OtHoursNormal)         AS DECIMAL(18,4))) / 60.0, 0) AS TotalOtNormal,
+              ISNULL(SUM(CAST(DATEDIFF(MINUTE, CAST('00:00:00' AS TIME), OtHoursWeeklyDayOff)   AS DECIMAL(18,4))) / 60.0, 0) AS TotalOtWeeklyDayOff,
+              ISNULL(SUM(CAST(DATEDIFF(MINUTE, CAST('00:00:00' AS TIME), OtHoursWeeklyHalfDayOff) AS DECIMAL(18,4))) / 60.0, 0) AS TotalOtWeeklyHalfDayOff,
+              ISNULL(SUM(CAST(DATEDIFF(MINUTE, CAST('00:00:00' AS TIME), OtHoursPoya)           AS DECIMAL(18,4))) / 60.0, 0) AS TotalOtPoya,
+              ISNULL(SUM(CAST(DATEDIFF(MINUTE, CAST('00:00:00' AS TIME), OtHoursBankHoliday)    AS DECIMAL(18,4))) / 60.0, 0) AS TotalOtBankHoliday,
+              0 AS TotalOtMercantile
+            FROM TimeSheet
+            WHERE EmployeeId = @EmployeeId
+              AND FirstInDate >= @StartDate
+              AND FirstInDate <= @EndDate";
+
+        var otRow = await connection.QuerySingleOrDefaultAsync<dynamic>(
+            otSql, new { EmployeeId = employeeId, StartDate = startDate, EndDate = endDate });
+
+        decimal totalOtNormal           = otRow?.TotalOtNormal           ?? 0m;
+        decimal totalOtWeeklyDayOff     = otRow?.TotalOtWeeklyDayOff     ?? 0m;
+        decimal totalOtWeeklyHalfDayOff = otRow?.TotalOtWeeklyHalfDayOff ?? 0m;
+        decimal totalOtPoya             = otRow?.TotalOtPoya             ?? 0m;
+        decimal totalOtBankHoliday      = otRow?.TotalOtBankHoliday      ?? 0m;
+        decimal totalOtMercantile       = otRow?.TotalOtMercantile       ?? 0m;
+
+        // ============================================================
+        // 7) Full Night Count — from NightDates
+        // ============================================================
+        const string fullNightSql = @"
+            SELECT COUNT(*)
+            FROM NightDates
+            WHERE EmployeeId = @EmployeeId
+              AND [Date] >= @StartDate
+              AND [Date] <= @EndDate
+              AND IsFullNight = 1";
+
+        var totalFullNight = await connection.ExecuteScalarAsync<int>(
+            fullNightSql, new { EmployeeId = employeeId, StartDate = startDate, EndDate = endDate });
+
+        return Ok(new
+        {
+            success = true,
+            data = new
+            {
+                PeriodKey = $"{targetYear}-{GetMonthNameFromNumber(targetMonth)}",
+                StartDate = startDate,           // ← explicit assignment, lowercase variable
+        EndDate   = endDate, 
+
+                TotalWorkingDays   = totalWorkingDays,
+                TotalNoPayCount    = Math.Round(totalNoPayCount, 2),
+                TotalLeaveTaken    = Math.Round(totalLeaveTaken, 2),
+                TotalPayCutHours   = Math.Round(totalPayCutHours, 2),
+                TotalWorkingHours  = Math.Round(totalWorkingHours, 2),
+
+                TotalOtNormal           = Math.Round(totalOtNormal, 2),
+                TotalOtWeeklyDayOff     = Math.Round(totalOtWeeklyDayOff, 2),
+                TotalOtWeeklyHalfDayOff = Math.Round(totalOtWeeklyHalfDayOff, 2),
+                TotalOtPoya             = Math.Round(totalOtPoya, 2),
+                TotalOtMercantile       = Math.Round(totalOtMercantile, 2),
+                TotalOtBankHoliday      = Math.Round(totalOtBankHoliday, 2),
+
+                TotalFullNight = totalFullNight
+            }
+        });
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error building timesheet summary for employee {EmployeeId}", employeeId);
+        return StatusCode(500, new { success = false, message = ex.Message });
+    }
+}
         [HttpGet("shift-block")]
         public async Task<IActionResult> GetShiftBlock([FromQuery] int employeeId, [FromQuery] string date)
         {

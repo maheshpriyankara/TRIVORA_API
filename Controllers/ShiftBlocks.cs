@@ -84,7 +84,8 @@ namespace TRIVORA_API.Controllers
                 return StatusCode(500, new { success = false, message = "An error occurred while saving the shift block" });
             }
         }
-private (bool IsValid, string? ErrorMessage) ValidateGeneralSettings(ShiftBlock shiftBlock)
+        // ===== Validation Helper: Weekly Day Off / Half Day Off =====
+                private (bool IsValid, string? ErrorMessage) ValidateGeneralSettings(ShiftBlock shiftBlock)
         {
             if (!string.IsNullOrWhiteSpace(shiftBlock.FirstWeeklyDayOffDay) &&
                 !string.IsNullOrWhiteSpace(shiftBlock.FirstWeeklyHalfDayOffDay) &&
@@ -95,8 +96,41 @@ private (bool IsValid, string? ErrorMessage) ValidateGeneralSettings(ShiftBlock 
                 return (false, "First Weekly Day Off and First Weekly Half Day Off cannot be on the same day.");
             }
 
+            bool hasHalfDayOff = !string.IsNullOrWhiteSpace(shiftBlock.FirstWeeklyHalfDayOffDay);
+
+            // Half-day-dependent feature validation
+            if (!hasHalfDayOff)
+            {
+                if (shiftBlock.IsLateDeductionHalfDay)
+                    return (false, "Late Deduction for General Half Day requires a Weekly Half Day Off Day to be selected.");
+                if (shiftBlock.IsOvertimeWeeklyGeneralHalfDay)
+                    return (false, "Weekly General Half Day Overtime requires a Weekly Half Day Off Day to be selected.");
+                if (!string.IsNullOrWhiteSpace(shiftBlock.NoPayRateHalfDay))
+                    return (false, "No Pay Rate (Half Day) requires a Weekly Half Day Off Day to be selected.");
+
+                // NEW: Timing fields must be empty if no half-day-off day
+                if (shiftBlock.WeeklyHalfDayDefaultInTime.HasValue ||
+                    shiftBlock.WeeklyHalfDayDefaultOutTime.HasValue ||
+                    shiftBlock.WeeklyHalfDayMaxLateCutOff.HasValue ||
+                    shiftBlock.WeeklyHalfDayMaxOtCutOff.HasValue)
+                    return (false, "Weekly Half Day timing fields cannot be set without a Weekly Half Day Off Day.");
+            }
+            else
+            {
+                // NEW: When a half-day-off day IS selected, require the four timing values
+                if (!shiftBlock.WeeklyHalfDayDefaultInTime.HasValue)
+                    return (false, "Weekly Half Day Default In Time is required when a Weekly Half Day Off Day is selected.");
+                if (!shiftBlock.WeeklyHalfDayDefaultOutTime.HasValue)
+                    return (false, "Weekly Half Day Default Out Time is required when a Weekly Half Day Off Day is selected.");
+                if (!shiftBlock.WeeklyHalfDayMaxLateCutOff.HasValue)
+                    return (false, "Weekly Half Day Max Late CutOff is required when a Weekly Half Day Off Day is selected.");
+                if (!shiftBlock.WeeklyHalfDayMaxOtCutOff.HasValue)
+                    return (false, "Weekly Half Day Max OT CutOff is required when a Weekly Half Day Off Day is selected.");
+            }
+
             return (true, null);
-        }   
+        }
+       
         // PUT: api/shiftblocks/5
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, ShiftBlock shiftBlock)
@@ -170,7 +204,8 @@ private (bool IsValid, string? ErrorMessage) ValidateGeneralSettings(ShiftBlock 
                 // Payment Settings
                 existingShiftBlock.DayOffRate = shiftBlock.DayOffRate;
                 existingShiftBlock.IsAttendanceAllowance = shiftBlock.IsAttendanceAllowance;
-
+                // ===== NEW: No Pay Rate - Half Day =====
+                existingShiftBlock.NoPayRateHalfDay = shiftBlock.NoPayRateHalfDay;
                 // Attendance Allowance Settings
                 existingShiftBlock.LeaveCount = shiftBlock.LeaveCount;
                 existingShiftBlock.LeaveCount2 = shiftBlock.LeaveCount2;
@@ -242,6 +277,11 @@ private (bool IsValid, string? ErrorMessage) ValidateGeneralSettings(ShiftBlock 
                                 // ===== NEW: General Settings - Weekly Day Off / Half Day Off =====
                 existingShiftBlock.FirstWeeklyDayOffDay = shiftBlock.FirstWeeklyDayOffDay;
                 existingShiftBlock.FirstWeeklyHalfDayOffDay = shiftBlock.FirstWeeklyHalfDayOffDay;
+                                // ===== NEW: Weekly Half Day Off Timing Settings =====
+                existingShiftBlock.WeeklyHalfDayDefaultInTime = shiftBlock.WeeklyHalfDayDefaultInTime;
+                existingShiftBlock.WeeklyHalfDayDefaultOutTime = shiftBlock.WeeklyHalfDayDefaultOutTime;
+                existingShiftBlock.WeeklyHalfDayMaxLateCutOff = shiftBlock.WeeklyHalfDayMaxLateCutOff;
+                existingShiftBlock.WeeklyHalfDayMaxOtCutOff = shiftBlock.WeeklyHalfDayMaxOtCutOff;
                 // Shift Type
                 existingShiftBlock.ShiftType = shiftBlock.ShiftType;
 

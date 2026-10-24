@@ -42,6 +42,9 @@ namespace TRIVORA_API.Models
         public TimeSpan? OtHoursExtra { get; set; }
         public TimeSpan? WorkHours { get; set; }
 
+        public TimeSpan? OtHoursWeeklyDayOff { get; set; }
+        
+        public TimeSpan? OtHoursWeeklyHalfDayOff { get; set; }
         // Day and pay type
         public string? DayType { get; set; } = "Normal";
         public string? PayType { get; set; } = "Regular";

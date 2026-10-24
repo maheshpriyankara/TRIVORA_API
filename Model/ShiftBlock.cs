@@ -239,5 +239,13 @@ namespace TRIVORA_API.Models
         public decimal? LateDeductHalfDayRate2 { get; set; }
         
         public int? LateGracePeriodHalfDay { get; set; }
+                // ===== NEW: No Pay Rate - Half Day =====
+        [StringLength(20)]
+        public string? NoPayRateHalfDay { get; set; }
+                // ===== NEW: Weekly Half Day Off Timing Settings =====
+        public TimeSpan? WeeklyHalfDayDefaultInTime { get; set; }
+        public TimeSpan? WeeklyHalfDayDefaultOutTime { get; set; }
+        public TimeSpan? WeeklyHalfDayMaxLateCutOff { get; set; }
+        public TimeSpan? WeeklyHalfDayMaxOtCutOff { get; set; }
     }
 }
