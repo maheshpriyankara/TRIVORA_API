@@ -519,7 +519,7 @@ public class EmployeeNavigationResult
                 return StatusCode(500, new { success = false, message = ex.Message });
             }
         }
-
+        
         // ============================================================
         // INTERNAL HELPER — same logic you had in AttendanceController
         // ============================================================
