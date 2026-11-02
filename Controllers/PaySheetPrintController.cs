@@ -153,7 +153,90 @@ namespace TrivoraHrisBackend.Controllers
                 return StatusCode(500, new { success = false, message = "Send failed: " + ex.Message });
             }
         }
+        // ============================================================
+// SEND ATTENDANCE REPORT EMAIL (generic — serves all report types)
+// ============================================================
+[HttpPost("send-attendance-report-email")]
+public async Task<IActionResult> SendAttendanceReportEmail([FromBody] SendAttendanceReportEmailRequest req)
+{
+    if (req == null || string.IsNullOrWhiteSpace(req.ToEmail))
+        return BadRequest(new { success = false, message = "To email is required" });
 
+    if (string.IsNullOrWhiteSpace(req.HtmlBody))
+        return BadRequest(new { success = false, message = "Report HTML is empty" });
+
+    var toList  = SplitEmails(req.ToEmail);
+    if (toList.Count == 0)
+        return BadRequest(new { success = false, message = "Invalid To email" });
+
+    var ccList  = SplitEmails(req.CcEmail);
+    var bccList = SplitEmails(req.BccEmail);
+
+    // ── Period label ──
+    var periodLabel = $"{req.FromMonthName} {req.FromYear}";
+    if (req.FromYear != req.ToYear || req.FromMonthName != req.ToMonthName)
+        periodLabel = $"{req.FromMonthName} {req.FromYear} – {req.ToMonthName} {req.ToYear}";
+
+    // ── Spam-safe HTML body ──
+    var emailHtml = AttendanceReportEmailTemplate.Build(
+        req.ReportTitle, periodLabel, req.CustomMessage);
+
+    // ── PDF from the exact HTML the user prints ──
+    byte[] pdfBytes;
+    try
+    {
+        var baseUrl = $"{Request.Scheme}://{Request.Host}";
+
+        // absolute-ise any relative image src (logo / signature)
+        var fixedHtml = req.HtmlBody
+            .Replace("src=\"images/", $"src=\"{baseUrl}/images/")
+            .Replace("src='images/", $"src='{baseUrl}/images/");
+
+        pdfBytes = await PaySheetPdfBuilder.BuildFromHtmlAsync(fixedHtml);
+    }
+    catch (Exception ex)
+    {
+        return StatusCode(500, new { success = false, message = "PDF generation failed: " + ex.Message });
+    }
+
+    var safePeriod = periodLabel.Replace(" ", "_").Replace("/", "-").Replace("→", "-");
+    var fileName   = $"{req.ReportFileNamePrefix}_{safePeriod}.pdf";
+    var subject    = $"{req.ReportTitle} — {periodLabel}";
+
+    try
+    {
+        await _email.SendAsync(
+            string.Join(",", toList),
+            subject,
+            emailHtml,
+            pdfBytes,
+            fileName,
+            ccList,
+            bccList);
+
+        return Ok(new
+        {
+            success = true,
+            message = $"Report emailed to {toList.Count} recipient(s).",
+            to  = toList,
+            cc  = ccList,
+            bcc = bccList
+        });
+    }
+    catch (Exception ex)
+    {
+        return StatusCode(500, new { success = false, message = "Send failed: " + ex.Message });
+    }
+}
+
+private static List<string> SplitEmails(string? s)
+{
+    if (string.IsNullOrWhiteSpace(s)) return new List<string>();
+    return s.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => x.Trim())
+            .Where(x => x.Length > 0)
+            .ToList();
+}
         // ============================================================
         // SEND BATCH EMAILS — one email per employee, PDF with all months
         // ============================================================
