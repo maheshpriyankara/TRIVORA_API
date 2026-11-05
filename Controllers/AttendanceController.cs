@@ -12,76 +12,111 @@ using TRIVORA_API.Models;
 
 namespace TRIVORA_API.Controllers
 {
+    public class UploadAttendanceResponse
+    {
+        public int UploadLogId { get; set; }
+        public int TotalRows { get; set; }
+        public int InsertedRows { get; set; }
+        public int SkippedRows { get; set; }
+        public int ErrorRows { get; set; }
+        public string Status { get; set; } = "Completed";
+        public List<UploadRowDetail> Details { get; set; } = new();
+    }
+
+    public class UploadRowDetail
+    {
+        public int LineNumber { get; set; }
+        public string? EpfNo { get; set; }
+        public string? DateTimeRaw { get; set; }
+        public string Result { get; set; } = "";   // "Inserted" | "Duplicate" | "UnknownEpf" | "ParseError"
+        public string? Message { get; set; }
+    }
+
+    public class AttendanceUploadLogDto
+{
+    public int Id { get; set; }
+    public string FileName { get; set; } = "";
+    public string FileType { get; set; } = "";
+    public int TotalRows { get; set; }
+    public int InsertedRows { get; set; }
+    public int SkippedRows { get; set; }
+    public int ErrorRows { get; set; }
+    public string Status { get; set; } = "";
+    public DateTime UploadedAt { get; set; }
+    public int? UploadedBy { get; set; }
+    public string? UploadIp { get; set; }
+    public bool HasFile { get; set; }
+}
     // ========== DTO CLASSES ==========
     public class LeaveReportRequest
-{
-    public int CompanyId { get; set; }
-    public string Scope { get; set; } = "selected";       // selected | all | lines
-    public int? EmployeeId { get; set; }
-    public int? DepartmentId { get; set; }
-    public string PeriodMode { get; set; } = "summary";   // range | summary
+    {
+        public int CompanyId { get; set; }
+        public string Scope { get; set; } = "selected";       // selected | all | lines
+        public int? EmployeeId { get; set; }
+        public int? DepartmentId { get; set; }
+        public string PeriodMode { get; set; } = "summary";   // range | summary
 
-    // Range mode
-    public string? FromDate { get; set; }
-    public string? ToDate { get; set; }
+        // Range mode
+        public string? FromDate { get; set; }
+        public string? ToDate { get; set; }
 
-    // Summary mode
-    public int? FromYear { get; set; }
-    public string? FromMonthName { get; set; }
-    public int? ToYear { get; set; }
-    public string? ToMonthName { get; set; }
-}
+        // Summary mode
+        public int? FromYear { get; set; }
+        public string? FromMonthName { get; set; }
+        public int? ToYear { get; set; }
+        public string? ToMonthName { get; set; }
+    }
 
-public class LeaveBucket { public double Full { get; set; } public double Half { get; set; } }
+    public class LeaveBucket { public double Full { get; set; } public double Half { get; set; } }
 
-public class LeaveBuckets
-{
-    public LeaveBucket Annual { get; set; } = new();
-    public LeaveBucket Casual { get; set; } = new();
-    public LeaveBucket Sick   { get; set; } = new();
-    public LeaveBucket Other  { get; set; } = new();
-}
+    public class LeaveBuckets
+    {
+        public LeaveBucket Annual { get; set; } = new();
+        public LeaveBucket Casual { get; set; } = new();
+        public LeaveBucket Sick { get; set; } = new();
+        public LeaveBucket Other { get; set; } = new();
+    }
 
-public class LeavePeriodEmployeeRow
-{
-    public int EmployeeId { get; set; }
-    public int EpfNo { get; set; } = 0;
-    public string EmployeeName { get; set; } = "";
-    public string DepartmentName { get; set; } = "";
-    public LeaveBuckets Buckets { get; set; } = new();
-    public double Total { get; set; }
-}
+    public class LeavePeriodEmployeeRow
+    {
+        public int EmployeeId { get; set; }
+        public int EpfNo { get; set; } = 0;
+        public string EmployeeName { get; set; } = "";
+        public string DepartmentName { get; set; } = "";
+        public LeaveBuckets Buckets { get; set; } = new();
+        public double Total { get; set; }
+    }
 
-public class LeavePeriodBlock
-{
-    public int Year { get; set; }
-    public string MonthName { get; set; } = "";
-    public bool Locked { get; set; }
-    public bool Processing { get; set; }
-    public List<LeavePeriodEmployeeRow> Employees { get; set; } = new();
-}
+    public class LeavePeriodBlock
+    {
+        public int Year { get; set; }
+        public string MonthName { get; set; } = "";
+        public bool Locked { get; set; }
+        public bool Processing { get; set; }
+        public List<LeavePeriodEmployeeRow> Employees { get; set; } = new();
+    }
 
-public class LeaveDayRow
-{
-    public string Date { get; set; } = "";             // yyyy-mm-dd
-    public double Annual { get; set; }
-    public double AnnualHalf { get; set; }
-    public double Casual { get; set; }
-    public double CasualHalf { get; set; }
-    public double Sick { get; set; }
-    public double SickHalf { get; set; }
-    public double Other { get; set; }
-    public string? OtherType { get; set; }
-}
+    public class LeaveDayRow
+    {
+        public string Date { get; set; } = "";             // yyyy-mm-dd
+        public double Annual { get; set; }
+        public double AnnualHalf { get; set; }
+        public double Casual { get; set; }
+        public double CasualHalf { get; set; }
+        public double Sick { get; set; }
+        public double SickHalf { get; set; }
+        public double Other { get; set; }
+        public string? OtherType { get; set; }
+    }
 
-public class LeaveRangeEmployeeBlock
-{
-    public int EmployeeId { get; set; }
-    public int EpfNo { get; set; }
-    public string EmployeeName { get; set; } = "";
-    public string DepartmentName { get; set; } = "";
-    public List<LeaveDayRow> Days { get; set; } = new();
-}
+    public class LeaveRangeEmployeeBlock
+    {
+        public int EmployeeId { get; set; }
+        public int EpfNo { get; set; }
+        public string EmployeeName { get; set; } = "";
+        public string DepartmentName { get; set; } = "";
+        public List<LeaveDayRow> Days { get; set; } = new();
+    }
     public class AttendanceDto
     {
         public int Id { get; set; }
@@ -268,162 +303,162 @@ public class LeaveRangeEmployeeBlock
             }
         }
         [HttpPost("manual-entry")]
-public async Task<IActionResult> AddManualEntry([FromBody] ManualAttendanceEntryDto entry)
-{
-    try
-    {
-        _logger.LogInformation(
-            "📥 Received manual entry: {Entry}",
-            System.Text.Json.JsonSerializer.Serialize(entry));
+        public async Task<IActionResult> AddManualEntry([FromBody] ManualAttendanceEntryDto entry)
+        {
+            try
+            {
+                _logger.LogInformation(
+                    "📥 Received manual entry: {Entry}",
+                    System.Text.Json.JsonSerializer.Serialize(entry));
 
-        string ipAddress = _httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+                string ipAddress = _httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 
-        // ── 1. Validate input ──
-        if (entry == null || entry.EmployeeId <= 0)
-            return BadRequest(new { success = false, message = "Invalid data" });
+                // ── 1. Validate input ──
+                if (entry == null || entry.EmployeeId <= 0)
+                    return BadRequest(new { success = false, message = "Invalid data" });
 
-        if (entry.DateTime == DateTime.MinValue)
-            return BadRequest(new { success = false, message = "DateTime is required" });
+                if (entry.DateTime == DateTime.MinValue)
+                    return BadRequest(new { success = false, message = "DateTime is required" });
 
-        if (string.IsNullOrEmpty(entry.PeriodKey))
-            entry.PeriodKey = $"{entry.DateTime.Year}-{entry.DateTime:MMMM}";
+                if (string.IsNullOrEmpty(entry.PeriodKey))
+                    entry.PeriodKey = $"{entry.DateTime.Year}-{entry.DateTime:MMMM}";
 
-        // ── 2. Confirm employee exists ──
-        var employee = await _context.Employees
-            .AsNoTracking()
-            .FirstOrDefaultAsync(e => e.Id == entry.EmployeeId);
+                // ── 2. Confirm employee exists ──
+                var employee = await _context.Employees
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(e => e.Id == entry.EmployeeId);
 
-        if (employee == null)
-            return NotFound(new { success = false, message = $"Employee with ID {entry.EmployeeId} not found" });
+                if (employee == null)
+                    return NotFound(new { success = false, message = $"Employee with ID {entry.EmployeeId} not found" });
 
-        using var connection = new SqlConnection(_connectionString);
+                using var connection = new SqlConnection(_connectionString);
 
-        // ── 3. Exact-match duplicate check scoped to (employee_id, datetime) ──
-        //     Truncate to the second so 08:00:00.000 and 08:00:00.123 both match.
-        const string existsSql = @"
+                // ── 3. Exact-match duplicate check scoped to (employee_id, datetime) ──
+                //     Truncate to the second so 08:00:00.000 and 08:00:00.123 both match.
+                const string existsSql = @"
             SELECT COUNT(*)
             FROM Attendance
             WHERE employee_id = @EmployeeId
               AND datetime    >= @DateTime
               AND datetime    <  DATEADD(SECOND, 1, @DateTime)";
 
-        var exists = await connection.ExecuteScalarAsync<int>(existsSql, new
-        {
-            EmployeeId = entry.EmployeeId,
-            DateTime   = entry.DateTime
-        });
+                var exists = await connection.ExecuteScalarAsync<int>(existsSql, new
+                {
+                    EmployeeId = entry.EmployeeId,
+                    DateTime = entry.DateTime
+                });
 
-        if (exists > 0)
-        {
-            // Row already present for THIS employee at THIS instant — report as duplicate
-            _logger.LogInformation(
-                "Duplicate manual entry blocked — employee {EmployeeId}, datetime {DateTime}",
-                entry.EmployeeId, entry.DateTime);
+                if (exists > 0)
+                {
+                    // Row already present for THIS employee at THIS instant — report as duplicate
+                    _logger.LogInformation(
+                        "Duplicate manual entry blocked — employee {EmployeeId}, datetime {DateTime}",
+                        entry.EmployeeId, entry.DateTime);
 
-            return Conflict(new
-            {
-                success = false,
-                duplicate = true,
-                message = $"Attendance already recorded for employee {entry.EmployeeId} at {entry.DateTime:yyyy-MM-dd HH:mm:ss}"
-            });
-        }
+                    return Conflict(new
+                    {
+                        success = false,
+                        duplicate = true,
+                        message = $"Attendance already recorded for employee {entry.EmployeeId} at {entry.DateTime:yyyy-MM-dd HH:mm:ss}"
+                    });
+                }
 
-        // ── 4. Insert (no update branch — duplicates are rejected above) ──
-        const string insertSql = @"
+                // ── 4. Insert (no update branch — duplicates are rejected above) ──
+                const string insertSql = @"
             INSERT INTO Attendance (employee_id, company_id, datetime, input_type, input_datetime)
             VALUES (@EmployeeId, @CompanyId, @DateTime, 'Manual', GETDATE())";
 
-        var rowsAffected = await connection.ExecuteAsync(insertSql, new
-        {
-            EmployeeId = entry.EmployeeId,
-            CompanyId  = employee.CompanyId,
-            DateTime   = entry.DateTime
-        });
+                var rowsAffected = await connection.ExecuteAsync(insertSql, new
+                {
+                    EmployeeId = entry.EmployeeId,
+                    CompanyId = employee.CompanyId,
+                    DateTime = entry.DateTime
+                });
 
                 _logger.LogInformation("✅ Inserted {Rows} attendance row(s) for employee {EmployeeId}",
             rowsAffected, entry.EmployeeId);
 
-        if (rowsAffected <= 0)
-            return StatusCode(500, new { success = false, message = "Failed to save attendance" });
+                if (rowsAffected <= 0)
+                    return StatusCode(500, new { success = false, message = "Failed to save attendance" });
 
-        // ── 5. Make sure the period exists (year + monthName, from PeriodKey) ──
-        //      PeriodKey is always "YYYY-MonthName" (e.g. "2025-May") because
-        //      we set it at the top of this method when the caller omits it.
-        bool periodCreated = false;
-        string? periodError = null;
-        try
-        {
-            var pkParts = entry.PeriodKey.Split('-');
-            if (pkParts.Length >= 2 &&
-                int.TryParse(pkParts[0], out int pkYear) &&
-                GetMonthNumber(pkParts[1]) > 0)
-            {
-                int monthNum = GetMonthNumber(pkParts[1]);
-                string monthName = GetMonthNameFromNumber(monthNum);
-
-                int userId = 0;
-                var uidClaim = User?.FindFirst("UserId")?.Value ?? User?.FindFirst("sub")?.Value;
-                if (!string.IsNullOrEmpty(uidClaim)) int.TryParse(uidClaim, out userId);
-
-                var ensured = await EnsurePayrollPeriodAsync(
-                    employee.CompanyId, pkYear, monthName, userId);
-
-                periodCreated = ensured.created;
-
-                if (ensured.locked)
+                // ── 5. Make sure the period exists (year + monthName, from PeriodKey) ──
+                //      PeriodKey is always "YYYY-MonthName" (e.g. "2025-May") because
+                //      we set it at the top of this method when the caller omits it.
+                bool periodCreated = false;
+                string? periodError = null;
+                try
                 {
-                    // Period exists but is locked — log it (not fatal to saving the punch,
-                    // but the caller should know the queue won't process it)
-                    _logger.LogWarning(
-                        "Manual entry saved for locked period {PeriodKey} (employee {EmployeeId})",
+                    var pkParts = entry.PeriodKey.Split('-');
+                    if (pkParts.Length >= 2 &&
+                        int.TryParse(pkParts[0], out int pkYear) &&
+                        GetMonthNumber(pkParts[1]) > 0)
+                    {
+                        int monthNum = GetMonthNumber(pkParts[1]);
+                        string monthName = GetMonthNameFromNumber(monthNum);
+
+                        int userId = 0;
+                        var uidClaim = User?.FindFirst("UserId")?.Value ?? User?.FindFirst("sub")?.Value;
+                        if (!string.IsNullOrEmpty(uidClaim)) int.TryParse(uidClaim, out userId);
+
+                        var ensured = await EnsurePayrollPeriodAsync(
+                            employee.CompanyId, pkYear, monthName, userId);
+
+                        periodCreated = ensured.created;
+
+                        if (ensured.locked)
+                        {
+                            // Period exists but is locked — log it (not fatal to saving the punch,
+                            // but the caller should know the queue won't process it)
+                            _logger.LogWarning(
+                                "Manual entry saved for locked period {PeriodKey} (employee {EmployeeId})",
+                                entry.PeriodKey, entry.EmployeeId);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Never fail the whole save because of the ensure step — the punch is already in
+                    periodError = ex.Message;
+                    _logger.LogError(ex,
+                        "Failed to auto-create payroll period for {PeriodKey} (employee {EmployeeId})",
                         entry.PeriodKey, entry.EmployeeId);
                 }
+
+                // ── 6. Queue reprocessing (only meaningful when a period now exists) ──
+                await TriggerProcessQueue(entry.EmployeeId, entry.PeriodKey, ipAddress);
+
+                return Ok(new
+                {
+                    success = true,
+                    message = "Attendance saved successfully",
+                    employeeId = entry.EmployeeId,
+                    dateTime = entry.DateTime,
+                    periodKey = entry.PeriodKey,
+                    periodCreated = periodCreated,     // ← tell the caller whether a period was created
+                    periodError = periodError        // ← null on success; string on ensure failure
+                });
+            }
+            catch (Microsoft.Data.SqlClient.SqlException sqlEx) when (sqlEx.Number == 2601 || sqlEx.Number == 2627)
+            {
+                // 2601 = unique index violation, 2627 = unique constraint violation
+                _logger.LogWarning(sqlEx,
+                    "Unique constraint blocked duplicate attendance for employee {EmployeeId} at {DateTime}",
+                    entry?.EmployeeId, entry?.DateTime);
+
+                return Conflict(new
+                {
+                    success = false,
+                    duplicate = true,
+                    message = "Attendance already exists for this employee at this date/time."
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error saving manual attendance");
+                return StatusCode(500, new { success = false, message = ex.Message });
             }
         }
-        catch (Exception ex)
-        {
-            // Never fail the whole save because of the ensure step — the punch is already in
-            periodError = ex.Message;
-            _logger.LogError(ex,
-                "Failed to auto-create payroll period for {PeriodKey} (employee {EmployeeId})",
-                entry.PeriodKey, entry.EmployeeId);
-        }
 
-        // ── 6. Queue reprocessing (only meaningful when a period now exists) ──
-        await TriggerProcessQueue(entry.EmployeeId, entry.PeriodKey, ipAddress);
-
-        return Ok(new
-        {
-            success        = true,
-            message        = "Attendance saved successfully",
-            employeeId     = entry.EmployeeId,
-            dateTime       = entry.DateTime,
-            periodKey      = entry.PeriodKey,
-            periodCreated  = periodCreated,     // ← tell the caller whether a period was created
-            periodError    = periodError        // ← null on success; string on ensure failure
-        });
-    }
-    catch (Microsoft.Data.SqlClient.SqlException sqlEx) when (sqlEx.Number == 2601 || sqlEx.Number == 2627)
-    {
-        // 2601 = unique index violation, 2627 = unique constraint violation
-        _logger.LogWarning(sqlEx,
-            "Unique constraint blocked duplicate attendance for employee {EmployeeId} at {DateTime}",
-            entry?.EmployeeId, entry?.DateTime);
-
-        return Conflict(new
-        {
-            success = false,
-            duplicate = true,
-            message = "Attendance already exists for this employee at this date/time."
-        });
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "Error saving manual attendance");
-        return StatusCode(500, new { success = false, message = ex.Message });
-    }
-}
-        
         [HttpDelete("manual-entry/{id}")]
         public async Task<IActionResult> DeleteManualEntry(int id)
         {
@@ -596,473 +631,473 @@ public async Task<IActionResult> AddManualEntry([FromBody] ManualAttendanceEntry
         // GET TIMESHEET  —  FIXED (loads NightDates + Calendar)
         // ============================================================
         // ============================================================
-// GET /api/attendance/timesheet
-//   Either year+monthName  OR  fromDate+toDate (overrides)
-// ============================================================
-// ============================================================
-// GET /api/attendance/timesheet
-//   Either year+monthName  OR  fromDate+toDate (overrides)
-// ============================================================
-// ============================================================
-// GET /api/attendance/timesheet
-//   Mode 1: year+monthName
-//   Mode 2: fromYear+fromMonth+toYear+toMonth (period range)
-// ============================================================
-[HttpGet("timesheet")]
-public async Task<IActionResult> GetTimesheet(
-    [FromQuery] int employeeId,
-    [FromQuery] string? year,
-    [FromQuery] string? monthName,
-    [FromQuery] int? fromYear,
-    [FromQuery] string? fromMonth,
-    [FromQuery] int? toYear,
-    [FromQuery] string? toMonth)
-{
-    try
-    {
-        // ── 1. Employee ──
-        var employee = await _context.Employees
-            .Join(_context.Company_Departments,
-                  e => e.DepartmentId,
-                  d => d.Id,
-                  (e, d) => new { Employee = e, Department = d })
-            .Where(x => x.Employee.Id == employeeId)
-            .Select(x => new
-            {
-                Employee       = x.Employee,
-                DepartmentName = x.Department.DepartmentName,
-                DepartmentId   = x.Department.Id
-            })
-            .FirstOrDefaultAsync();
-
-        if (employee == null)
-            return NotFound(new { success = false, message = "Employee not found" });
-
-        var companySettings = await _companySettingsService.GetCompanySettingsAsync(employee.Employee.CompanyId);
-        if (companySettings == null)
-            return BadRequest(new { success = false, message = "Company settings not found" });
-
-        int salaryStartDay = !string.IsNullOrEmpty(employee.DepartmentName) &&
-            employee.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase)
-            ? companySettings.SalaryStartDate_Office
-            : companySettings.SalaryStartDate_Wages;
-
-        int targetYear  = string.IsNullOrEmpty(year) ? DateTime.Now.Year : int.Parse(year);
-        int targetMonth = GetMonthNumberFromName(monthName) ?? DateTime.Now.Month;
-        if (targetMonth == 0)
-            return BadRequest(new { success = false, message = "Invalid month name provided" });
-
-        // ── 2. Base range from single period ──
-        DateTime startDate, endDate;
-        if (salaryStartDay == 1)
+        // GET /api/attendance/timesheet
+        //   Either year+monthName  OR  fromDate+toDate (overrides)
+        // ============================================================
+        // ============================================================
+        // GET /api/attendance/timesheet
+        //   Either year+monthName  OR  fromDate+toDate (overrides)
+        // ============================================================
+        // ============================================================
+        // GET /api/attendance/timesheet
+        //   Mode 1: year+monthName
+        //   Mode 2: fromYear+fromMonth+toYear+toMonth (period range)
+        // ============================================================
+        [HttpGet("timesheet")]
+        public async Task<IActionResult> GetTimesheet(
+            [FromQuery] int employeeId,
+            [FromQuery] string? year,
+            [FromQuery] string? monthName,
+            [FromQuery] int? fromYear,
+            [FromQuery] string? fromMonth,
+            [FromQuery] int? toYear,
+            [FromQuery] string? toMonth)
         {
-            startDate = new DateTime(targetYear, targetMonth, 1);
-            endDate   = new DateTime(targetYear, targetMonth, DateTime.DaysInMonth(targetYear, targetMonth));
-        }
-        else
-        {
-            startDate = new DateTime(targetYear, targetMonth, salaryStartDay);
-            var nextMonth = startDate.AddMonths(1);
-            endDate = new DateTime(nextMonth.Year, nextMonth.Month, salaryStartDay).AddDays(-1);
-        }
-
-        // ── 2b. Period-range override ──
-        if (fromYear.HasValue && toYear.HasValue
-            && !string.IsNullOrWhiteSpace(fromMonth) && !string.IsNullOrWhiteSpace(toMonth))
-        {
-            int fromMonthNum = GetMonthNumber(fromMonth);
-            int toMonthNum   = GetMonthNumber(toMonth);
-
-            if (fromMonthNum > 0 && toMonthNum > 0)
+            try
             {
-                // Start of FROM period
-                if (salaryStartDay == 1)
-                    startDate = new DateTime(fromYear.Value, fromMonthNum, 1);
-                else
-                    startDate = new DateTime(fromYear.Value, fromMonthNum, salaryStartDay);
-
-                // End of TO period
-                if (salaryStartDay == 1)
-                {
-                    endDate = new DateTime(toYear.Value, toMonthNum,
-                        DateTime.DaysInMonth(toYear.Value, toMonthNum));
-                }
-                else
-                {
-                    var toPeriodStart = new DateTime(toYear.Value, toMonthNum, salaryStartDay);
-                    var afterToMonth  = toPeriodStart.AddMonths(1);
-                    endDate = new DateTime(afterToMonth.Year, afterToMonth.Month, salaryStartDay).AddDays(-1);
-                }
-            }
-        }
-
-        // ── 3. Load data ──
-        var timesheetData = new List<object>();
-        var currentDate = startDate;
-
-        var existingTimesheets = await _context.TimeSheets
-            .Where(t => t.EmployeeId == employeeId &&
-                ((t.FirstInDate  >= startDate && t.FirstInDate  <= endDate) ||
-                 (t.SecondInDate >= startDate && t.SecondInDate <= endDate)))
-            .ToListAsync();
-
-        var savedShiftBlocks = await _context.ShiftsTimesheet
-            .Where(s => s.EmployeeId == employeeId && s.Date >= startDate && s.Date <= endDate)
-            .ToListAsync();
-
-        var shiftBlockDict = await _context.ShiftBlocks
-            .Where(sb => sb.CompanyId == employee.Employee.CompanyId)
-            .ToDictionaryAsync(sb => sb.Id, sb => sb.DayType2);
-
-        var shiftBlockDictFull = await _context.ShiftBlocks
-            .Where(sb => sb.CompanyId == employee.Employee.CompanyId)
-            .ToDictionaryAsync(sb => sb.Id);
-
-        var leaveRecords = await _context.Leave
-            .Where(l => l.EmployeeId == employeeId &&
-                        l.LeaveDate >= startDate && l.LeaveDate <= endDate &&
-                        l.Status == "Approved")
-            .Select(l => new { l.LeaveDate, l.LeaveType, l.IsHalfDay, l.Status })
-            .ToListAsync();
-
-        var otherLeaves = await _context.OtherLeaves
-            .Where(ol => ol.EmployeeId == employeeId &&
-                         ol.FromDate <= endDate && ol.ToDate >= startDate &&
-                         (ol.Status == "Approved" || ol.Status == "Pending"))
-            .ToListAsync();
-
-        var employeeShift = await (from e in _context.Employees
-                                   join sb in _context.ShiftBlocks on e.ShiftBlockId equals sb.Id into sj
-                                   from shift in sj.DefaultIfEmpty()
-                                   where e.Id == employeeId
-                                   select new
-                                   {
-                                       ShiftBlockId = e.ShiftBlockId,
-                                       ShiftType    = shift != null ? shift.ShiftType : "Single"
-                                   }).FirstOrDefaultAsync();
-
-        string employeeShiftType = employeeShift?.ShiftType ?? "Single";
-
-        var nightDates = await _context.NightDates
-            .Where(n => n.EmployeeId == employeeId &&
-                        n.Date >= startDate && n.Date <= endDate &&
-                        n.IsFullNight)
-            .Select(n => n.Date)
-            .ToListAsync();
-        var nightDateSet = new HashSet<DateTime>(nightDates.Select(d => d.Date));
-
-        var calendarRows = await _context.Calendar
-            .Where(c => c.CompanyId == employee.Employee.CompanyId &&
-                        c.Date >= startDate && c.Date <= endDate)
-            .ToListAsync();
-        var calendarDict = calendarRows
-            .GroupBy(c => c.Date.Date)
-            .ToDictionary(g => g.Key, g => g.First());
-
-        // ── 4. Loop day by day ──
-        while (currentDate <= endDate)
-        {
-            var existingTimesheet = existingTimesheets
-                .FirstOrDefault(t =>
-                    (t.FirstInDate.HasValue  && t.FirstInDate.Value.Date  == currentDate.Date) ||
-                    (t.SecondInDate.HasValue && t.SecondInDate.Value.Date == currentDate.Date));
-
-            var savedShiftBlock = existingTimesheet == null
-                ? savedShiftBlocks.FirstOrDefault(s => s.Date.Date == currentDate.Date)
-                : null;
-
-            int? activeShiftBlockId =
-                existingTimesheet?.FirstShiftBlockId
-                ?? savedShiftBlock?.ShiftBlockIdFirstShift
-                ?? employeeShift?.ShiftBlockId;
-
-            string? activeDayType2 = activeShiftBlockId.HasValue &&
-                shiftBlockDict.TryGetValue(activeShiftBlockId.Value, out var dt) ? dt : null;
-
-            calendarDict.TryGetValue(currentDate.Date, out var cal);
-
-            bool isPoya        = cal?.IsPoya        ?? false;
-            bool isBankHoliday = cal?.IsBankHoliday ?? false;
-            bool isMercantile  = cal?.IsMercantile  ?? false;
-            bool isHoliday     = isPoya || isBankHoliday || isMercantile;
-
-            int? shiftBlockIdForWeeklyOff = employeeShift?.ShiftBlockId ?? activeShiftBlockId;
-            shiftBlockDictFull.TryGetValue(shiftBlockIdForWeeklyOff ?? 0, out var shiftBlockSettings);
-
-            string? firstWeeklyDayOff     = shiftBlockSettings?.FirstWeeklyDayOffDay;
-            string? firstWeeklyHalfDayOff = shiftBlockSettings?.FirstWeeklyHalfDayOffDay;
-
-            bool isWeeklyDayOff =
-                !string.IsNullOrEmpty(firstWeeklyDayOff) &&
-                currentDate.DayOfWeek.ToString().Equals(firstWeeklyDayOff, StringComparison.OrdinalIgnoreCase);
-
-            bool isWeeklyHalfDayOff =
-                !string.IsNullOrEmpty(firstWeeklyHalfDayOff) &&
-                currentDate.DayOfWeek.ToString().Equals(firstWeeklyHalfDayOff, StringComparison.OrdinalIgnoreCase);
-
-            bool allowFullDayLeave = !isHoliday && !isWeeklyDayOff && !isWeeklyHalfDayOff;
-            bool allowHalfDayLeave = !isHoliday && !isWeeklyDayOff;
-
-            bool isNightFromShift = string.Equals(activeDayType2, "Next day", StringComparison.OrdinalIgnoreCase);
-            bool isNightFromTable = nightDateSet.Contains(currentDate.Date);
-            bool hasFullNight     = isNightFromShift || isNightFromTable;
-
-            var defaultOutDate = hasFullNight ? currentDate.AddDays(1) : currentDate;
-            bool isHalfDayOfWeek = isWeeklyHalfDayOff;
-
-            var dayLeaves = leaveRecords
-                .Where(l => l.LeaveDate.Date == currentDate.Date)
-                .ToList();
-
-            var isBlockedByOtherLeave = otherLeaves
-                .Any(ol => currentDate >= ol.FromDate && currentDate <= ol.ToDate);
-
-            var hasAnnualLeave     = dayLeaves.Any(l => l.LeaveType == "Annual" && !l.IsHalfDay);
-            var hasAnnualHalfLeave = dayLeaves.Any(l => l.LeaveType == "Annual" &&  l.IsHalfDay);
-            var hasCasualLeave     = dayLeaves.Any(l => l.LeaveType == "Casual" && !l.IsHalfDay);
-            var hasCasualHalfLeave = dayLeaves.Any(l => l.LeaveType == "Casual" &&  l.IsHalfDay);
-            var hasSickLeave       = dayLeaves.Any(l => l.LeaveType == "Sick"   && !l.IsHalfDay);
-            var hasSickHalfLeave   = dayLeaves.Any(l => l.LeaveType == "Sick"   &&  l.IsHalfDay);
-
-            var otherLeaveType = "-";
-
-            if (hasFullNight)
-            {
-                hasAnnualHalfLeave = false;
-                hasCasualHalfLeave = false;
-                hasSickHalfLeave   = false;
-            }
-
-            if (isBlockedByOtherLeave)
-            {
-                var blockingLeave = otherLeaves.FirstOrDefault(ol =>
-                    currentDate >= ol.FromDate && currentDate <= ol.ToDate);
-                otherLeaveType = blockingLeave?.LeaveType ?? "Blocked";
-            }
-
-            // Safe-sum (null → 0) — return type is TimeSpan (not TimeSpan?)
-            TimeSpan nz(TimeSpan? t) => t ?? TimeSpan.Zero;
-
-            TimeSpan otDoubleCombined =
-                nz(existingTimesheet?.OtHoursPoya) +
-                nz(existingTimesheet?.OtHoursBankHoliday) +
-                nz(existingTimesheet?.OtHoursSunday) +
-                nz(existingTimesheet?.OtHoursWeeklyDayOff) +
-                nz(existingTimesheet?.OtHoursWeeklyHalfDayOff);
-
-            var dayData = new
-            {
-                Date    = currentDate,
-                DayName = currentDate.DayOfWeek.ToString(),
-
-                TimesheetRecord = existingTimesheet != null
-                    ? new
+                // ── 1. Employee ──
+                var employee = await _context.Employees
+                    .Join(_context.Company_Departments,
+                          e => e.DepartmentId,
+                          d => d.Id,
+                          (e, d) => new { Employee = e, Department = d })
+                    .Where(x => x.Employee.Id == employeeId)
+                    .Select(x => new
                     {
-                        ShiftBlockId  = existingTimesheet.FirstShiftBlockId,
-                        InTime        = existingTimesheet.FirstInTime,
-                        OutDate       = (DateTime?)(existingTimesheet.FirstOutDate ?? defaultOutDate),
-                        OutTime       = existingTimesheet.FirstOutTime,
-                        DayType       = existingTimesheet.DayType,
-                        WorkHours     = existingTimesheet.WorkHours,
+                        Employee = x.Employee,
+                        DepartmentName = x.Department.DepartmentName,
+                        DepartmentId = x.Department.Id
+                    })
+                    .FirstOrDefaultAsync();
 
-                        FirstShiftBlockId  = existingTimesheet.FirstShiftBlockId,
-                        FirstInTime        = existingTimesheet.FirstInTime,
-                        FirstOutDate       = (DateTime?)(existingTimesheet.FirstOutDate ?? defaultOutDate),
-                        FirstOutTime       = existingTimesheet.FirstOutTime,
-                        SecondShiftBlockId = existingTimesheet.SecondShiftBlockId,
-                        SecondInTime       = existingTimesheet.SecondInTime,
-                        SecondOutDate      = (DateTime?)(existingTimesheet.SecondOutDate ?? defaultOutDate),
-                        SecondOutTime      = existingTimesheet.SecondOutTime,
+                if (employee == null)
+                    return NotFound(new { success = false, message = "Employee not found" });
 
-                        LateHours               = existingTimesheet.LateHours,
-                        OtHoursNormal           = existingTimesheet.OtHoursNormal,
-                        OtHoursDouble           = (TimeSpan?)otDoubleCombined,
-                        OtHoursWeeklyDayOff     = (TimeSpan?)existingTimesheet.OtHoursWeeklyDayOff,
-                        OtHoursWeeklyHalfDayOff = (TimeSpan?)existingTimesheet.OtHoursWeeklyHalfDayOff,
-                        OtHoursPoya             = (TimeSpan?)existingTimesheet.OtHoursPoya,
-                        OtHoursBankHoliday      = (TimeSpan?)existingTimesheet.OtHoursBankHoliday,
-                        OtHoursSunday           = (TimeSpan?)existingTimesheet.OtHoursSunday,
-                        PayType                 = (string?)existingTimesheet.PayType,
-                        FromShiftBlock          = false
-                    }
-                    : savedShiftBlock != null
-                        ? new
-                        {
-                            ShiftBlockId  = savedShiftBlock.ShiftBlockIdFirstShift,
-                            InTime        = (TimeSpan?)null,
-                            OutDate       = (DateTime?)defaultOutDate,
-                            OutTime       = (TimeSpan?)null,
-                            DayType       = "Normal",
-                            WorkHours     = (TimeSpan?)null,
+                var companySettings = await _companySettingsService.GetCompanySettingsAsync(employee.Employee.CompanyId);
+                if (companySettings == null)
+                    return BadRequest(new { success = false, message = "Company settings not found" });
 
-                            FirstShiftBlockId  = savedShiftBlock.ShiftBlockIdFirstShift,
-                            FirstInTime        = (TimeSpan?)null,
-                            FirstOutDate       = (DateTime?)defaultOutDate,
-                            FirstOutTime       = (TimeSpan?)null,
-                            SecondShiftBlockId = savedShiftBlock.ShiftBlockIdSecondShift,
-                            SecondInTime       = (TimeSpan?)null,
-                            SecondOutDate      = (DateTime?)defaultOutDate,
-                            SecondOutTime      = (TimeSpan?)null,
+                int salaryStartDay = !string.IsNullOrEmpty(employee.DepartmentName) &&
+                    employee.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase)
+                    ? companySettings.SalaryStartDate_Office
+                    : companySettings.SalaryStartDate_Wages;
 
-                            LateHours               = (TimeSpan?)null,
-                            OtHoursNormal           = (TimeSpan?)null,
-                            OtHoursDouble           = (TimeSpan?)otDoubleCombined,
-                            OtHoursWeeklyDayOff     = (TimeSpan?)null,
-                            OtHoursWeeklyHalfDayOff = (TimeSpan?)null,
-                            OtHoursPoya             = (TimeSpan?)null,
-                            OtHoursBankHoliday      = (TimeSpan?)null,
-                            OtHoursSunday           = (TimeSpan?)null,
-                            PayType                 = (string?)null,
-                            FromShiftBlock          = true
-                        }
-                        : null,
+                int targetYear = string.IsNullOrEmpty(year) ? DateTime.Now.Year : int.Parse(year);
+                int targetMonth = GetMonthNumberFromName(monthName) ?? DateTime.Now.Month;
+                if (targetMonth == 0)
+                    return BadRequest(new { success = false, message = "Invalid month name provided" });
 
-                ActiveLeave    = dayLeaves,
-                IsBlocked      = isBlockedByOtherLeave,
-                OtherLeaveType = otherLeaveType,
-
-                HasFullNight       = hasFullNight,
-                NightLockedByShift = isNightFromShift,
-
-                IsPoya           = isPoya,
-                IsBankHoliday    = isBankHoliday,
-                IsMercantile     = isMercantile,
-                IsHoliday        = isHoliday,
-                IsHalfDayOfWeek  = isHalfDayOfWeek,
-
-                IsWeeklyDayOff     = isWeeklyDayOff,
-                IsWeeklyHalfDayOff = isWeeklyHalfDayOff,
-
-                AllowFullDayLeave  = allowFullDayLeave,
-                AllowHalfDayLeave  = allowHalfDayLeave,
-
-                HasAnnualLeave     = hasAnnualLeave,
-                HasAnnualHalfLeave = hasAnnualHalfLeave,
-                HasCasualLeave     = hasCasualLeave,
-                HasCasualHalfLeave = hasCasualHalfLeave,
-                HasSickLeave       = hasSickLeave,
-                HasSickHalfLeave   = hasSickHalfLeave,
-
-                WorkHours  = existingTimesheet?.WorkHours?.ToString(@"hh\:mm")     ?? "00:00",
-                LateHours  = existingTimesheet?.LateHours?.ToString(@"hh\:mm")     ?? "00:00",
-                OtNormal   = existingTimesheet?.OtHoursNormal?.ToString(@"hh\:mm") ?? "00:00",
-                OtDouble   = otDoubleCombined.ToString(@"hh\:mm"),
-
-                IsWeekend          = currentDate.DayOfWeek == DayOfWeek.Saturday ||
-                                     currentDate.DayOfWeek == DayOfWeek.Sunday,
-                SalaryStartDayUsed = salaryStartDay
-            };
-
-            timesheetData.Add(dayData);
-            currentDate = currentDate.AddDays(1);
-        }
-
-        // ── 5. Return ──
-        return Ok(new
-        {
-            success = true,
-            data = new
-            {
-                Days      = timesheetData,
-                StartDate = startDate,
-                EndDate   = endDate,
-                EmployeeShiftType = employeeShiftType,
-                PeriodInfo = new
+                // ── 2. Base range from single period ──
+                DateTime startDate, endDate;
+                if (salaryStartDay == 1)
                 {
-                    Year        = targetYear,
-                    Month       = targetMonth,
-                    MonthName   = GetMonthNameFromNumber(targetMonth),
-                    SalaryStartDay = salaryStartDay,
-                    DepartmentId   = employee.DepartmentId,
-                    DepartmentName = employee.DepartmentName ?? "No Department",
-                    DepartmentType = !string.IsNullOrEmpty(employee.DepartmentName) &&
-                        employee.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase)
-                        ? "Office" : "Wages",
-                    SalaryStartDate_Office = companySettings.SalaryStartDate_Office,
-                    SalaryStartDate_Wages  = companySettings.SalaryStartDate_Wages
+                    startDate = new DateTime(targetYear, targetMonth, 1);
+                    endDate = new DateTime(targetYear, targetMonth, DateTime.DaysInMonth(targetYear, targetMonth));
                 }
+                else
+                {
+                    startDate = new DateTime(targetYear, targetMonth, salaryStartDay);
+                    var nextMonth = startDate.AddMonths(1);
+                    endDate = new DateTime(nextMonth.Year, nextMonth.Month, salaryStartDay).AddDays(-1);
+                }
+
+                // ── 2b. Period-range override ──
+                if (fromYear.HasValue && toYear.HasValue
+                    && !string.IsNullOrWhiteSpace(fromMonth) && !string.IsNullOrWhiteSpace(toMonth))
+                {
+                    int fromMonthNum = GetMonthNumber(fromMonth);
+                    int toMonthNum = GetMonthNumber(toMonth);
+
+                    if (fromMonthNum > 0 && toMonthNum > 0)
+                    {
+                        // Start of FROM period
+                        if (salaryStartDay == 1)
+                            startDate = new DateTime(fromYear.Value, fromMonthNum, 1);
+                        else
+                            startDate = new DateTime(fromYear.Value, fromMonthNum, salaryStartDay);
+
+                        // End of TO period
+                        if (salaryStartDay == 1)
+                        {
+                            endDate = new DateTime(toYear.Value, toMonthNum,
+                                DateTime.DaysInMonth(toYear.Value, toMonthNum));
+                        }
+                        else
+                        {
+                            var toPeriodStart = new DateTime(toYear.Value, toMonthNum, salaryStartDay);
+                            var afterToMonth = toPeriodStart.AddMonths(1);
+                            endDate = new DateTime(afterToMonth.Year, afterToMonth.Month, salaryStartDay).AddDays(-1);
+                        }
+                    }
+                }
+
+                // ── 3. Load data ──
+                var timesheetData = new List<object>();
+                var currentDate = startDate;
+
+                var existingTimesheets = await _context.TimeSheets
+                    .Where(t => t.EmployeeId == employeeId &&
+                        ((t.FirstInDate >= startDate && t.FirstInDate <= endDate) ||
+                         (t.SecondInDate >= startDate && t.SecondInDate <= endDate)))
+                    .ToListAsync();
+
+                var savedShiftBlocks = await _context.ShiftsTimesheet
+                    .Where(s => s.EmployeeId == employeeId && s.Date >= startDate && s.Date <= endDate)
+                    .ToListAsync();
+
+                var shiftBlockDict = await _context.ShiftBlocks
+                    .Where(sb => sb.CompanyId == employee.Employee.CompanyId)
+                    .ToDictionaryAsync(sb => sb.Id, sb => sb.DayType2);
+
+                var shiftBlockDictFull = await _context.ShiftBlocks
+                    .Where(sb => sb.CompanyId == employee.Employee.CompanyId)
+                    .ToDictionaryAsync(sb => sb.Id);
+
+                var leaveRecords = await _context.Leave
+                    .Where(l => l.EmployeeId == employeeId &&
+                                l.LeaveDate >= startDate && l.LeaveDate <= endDate &&
+                                l.Status == "Approved")
+                    .Select(l => new { l.LeaveDate, l.LeaveType, l.IsHalfDay, l.Status })
+                    .ToListAsync();
+
+                var otherLeaves = await _context.OtherLeaves
+                    .Where(ol => ol.EmployeeId == employeeId &&
+                                 ol.FromDate <= endDate && ol.ToDate >= startDate &&
+                                 (ol.Status == "Approved" || ol.Status == "Pending"))
+                    .ToListAsync();
+
+                var employeeShift = await (from e in _context.Employees
+                                           join sb in _context.ShiftBlocks on e.ShiftBlockId equals sb.Id into sj
+                                           from shift in sj.DefaultIfEmpty()
+                                           where e.Id == employeeId
+                                           select new
+                                           {
+                                               ShiftBlockId = e.ShiftBlockId,
+                                               ShiftType = shift != null ? shift.ShiftType : "Single"
+                                           }).FirstOrDefaultAsync();
+
+                string employeeShiftType = employeeShift?.ShiftType ?? "Single";
+
+                var nightDates = await _context.NightDates
+                    .Where(n => n.EmployeeId == employeeId &&
+                                n.Date >= startDate && n.Date <= endDate &&
+                                n.IsFullNight)
+                    .Select(n => n.Date)
+                    .ToListAsync();
+                var nightDateSet = new HashSet<DateTime>(nightDates.Select(d => d.Date));
+
+                var calendarRows = await _context.Calendar
+                    .Where(c => c.CompanyId == employee.Employee.CompanyId &&
+                                c.Date >= startDate && c.Date <= endDate)
+                    .ToListAsync();
+                var calendarDict = calendarRows
+                    .GroupBy(c => c.Date.Date)
+                    .ToDictionary(g => g.Key, g => g.First());
+
+                // ── 4. Loop day by day ──
+                while (currentDate <= endDate)
+                {
+                    var existingTimesheet = existingTimesheets
+                        .FirstOrDefault(t =>
+                            (t.FirstInDate.HasValue && t.FirstInDate.Value.Date == currentDate.Date) ||
+                            (t.SecondInDate.HasValue && t.SecondInDate.Value.Date == currentDate.Date));
+
+                    var savedShiftBlock = existingTimesheet == null
+                        ? savedShiftBlocks.FirstOrDefault(s => s.Date.Date == currentDate.Date)
+                        : null;
+
+                    int? activeShiftBlockId =
+                        existingTimesheet?.FirstShiftBlockId
+                        ?? savedShiftBlock?.ShiftBlockIdFirstShift
+                        ?? employeeShift?.ShiftBlockId;
+
+                    string? activeDayType2 = activeShiftBlockId.HasValue &&
+                        shiftBlockDict.TryGetValue(activeShiftBlockId.Value, out var dt) ? dt : null;
+
+                    calendarDict.TryGetValue(currentDate.Date, out var cal);
+
+                    bool isPoya = cal?.IsPoya ?? false;
+                    bool isBankHoliday = cal?.IsBankHoliday ?? false;
+                    bool isMercantile = cal?.IsMercantile ?? false;
+                    bool isHoliday = isPoya || isBankHoliday || isMercantile;
+
+                    int? shiftBlockIdForWeeklyOff = employeeShift?.ShiftBlockId ?? activeShiftBlockId;
+                    shiftBlockDictFull.TryGetValue(shiftBlockIdForWeeklyOff ?? 0, out var shiftBlockSettings);
+
+                    string? firstWeeklyDayOff = shiftBlockSettings?.FirstWeeklyDayOffDay;
+                    string? firstWeeklyHalfDayOff = shiftBlockSettings?.FirstWeeklyHalfDayOffDay;
+
+                    bool isWeeklyDayOff =
+                        !string.IsNullOrEmpty(firstWeeklyDayOff) &&
+                        currentDate.DayOfWeek.ToString().Equals(firstWeeklyDayOff, StringComparison.OrdinalIgnoreCase);
+
+                    bool isWeeklyHalfDayOff =
+                        !string.IsNullOrEmpty(firstWeeklyHalfDayOff) &&
+                        currentDate.DayOfWeek.ToString().Equals(firstWeeklyHalfDayOff, StringComparison.OrdinalIgnoreCase);
+
+                    bool allowFullDayLeave = !isHoliday && !isWeeklyDayOff && !isWeeklyHalfDayOff;
+                    bool allowHalfDayLeave = !isHoliday && !isWeeklyDayOff;
+
+                    bool isNightFromShift = string.Equals(activeDayType2, "Next day", StringComparison.OrdinalIgnoreCase);
+                    bool isNightFromTable = nightDateSet.Contains(currentDate.Date);
+                    bool hasFullNight = isNightFromShift || isNightFromTable;
+
+                    var defaultOutDate = hasFullNight ? currentDate.AddDays(1) : currentDate;
+                    bool isHalfDayOfWeek = isWeeklyHalfDayOff;
+
+                    var dayLeaves = leaveRecords
+                        .Where(l => l.LeaveDate.Date == currentDate.Date)
+                        .ToList();
+
+                    var isBlockedByOtherLeave = otherLeaves
+                        .Any(ol => currentDate >= ol.FromDate && currentDate <= ol.ToDate);
+
+                    var hasAnnualLeave = dayLeaves.Any(l => l.LeaveType == "Annual" && !l.IsHalfDay);
+                    var hasAnnualHalfLeave = dayLeaves.Any(l => l.LeaveType == "Annual" && l.IsHalfDay);
+                    var hasCasualLeave = dayLeaves.Any(l => l.LeaveType == "Casual" && !l.IsHalfDay);
+                    var hasCasualHalfLeave = dayLeaves.Any(l => l.LeaveType == "Casual" && l.IsHalfDay);
+                    var hasSickLeave = dayLeaves.Any(l => l.LeaveType == "Sick" && !l.IsHalfDay);
+                    var hasSickHalfLeave = dayLeaves.Any(l => l.LeaveType == "Sick" && l.IsHalfDay);
+
+                    var otherLeaveType = "-";
+
+                    if (hasFullNight)
+                    {
+                        hasAnnualHalfLeave = false;
+                        hasCasualHalfLeave = false;
+                        hasSickHalfLeave = false;
+                    }
+
+                    if (isBlockedByOtherLeave)
+                    {
+                        var blockingLeave = otherLeaves.FirstOrDefault(ol =>
+                            currentDate >= ol.FromDate && currentDate <= ol.ToDate);
+                        otherLeaveType = blockingLeave?.LeaveType ?? "Blocked";
+                    }
+
+                    // Safe-sum (null → 0) — return type is TimeSpan (not TimeSpan?)
+                    TimeSpan nz(TimeSpan? t) => t ?? TimeSpan.Zero;
+
+                    TimeSpan otDoubleCombined =
+                        nz(existingTimesheet?.OtHoursPoya) +
+                        nz(existingTimesheet?.OtHoursBankHoliday) +
+                        nz(existingTimesheet?.OtHoursSunday) +
+                        nz(existingTimesheet?.OtHoursWeeklyDayOff) +
+                        nz(existingTimesheet?.OtHoursWeeklyHalfDayOff);
+
+                    var dayData = new
+                    {
+                        Date = currentDate,
+                        DayName = currentDate.DayOfWeek.ToString(),
+
+                        TimesheetRecord = existingTimesheet != null
+                            ? new
+                            {
+                                ShiftBlockId = existingTimesheet.FirstShiftBlockId,
+                                InTime = existingTimesheet.FirstInTime,
+                                OutDate = (DateTime?)(existingTimesheet.FirstOutDate ?? defaultOutDate),
+                                OutTime = existingTimesheet.FirstOutTime,
+                                DayType = existingTimesheet.DayType,
+                                WorkHours = existingTimesheet.WorkHours,
+
+                                FirstShiftBlockId = existingTimesheet.FirstShiftBlockId,
+                                FirstInTime = existingTimesheet.FirstInTime,
+                                FirstOutDate = (DateTime?)(existingTimesheet.FirstOutDate ?? defaultOutDate),
+                                FirstOutTime = existingTimesheet.FirstOutTime,
+                                SecondShiftBlockId = existingTimesheet.SecondShiftBlockId,
+                                SecondInTime = existingTimesheet.SecondInTime,
+                                SecondOutDate = (DateTime?)(existingTimesheet.SecondOutDate ?? defaultOutDate),
+                                SecondOutTime = existingTimesheet.SecondOutTime,
+
+                                LateHours = existingTimesheet.LateHours,
+                                OtHoursNormal = existingTimesheet.OtHoursNormal,
+                                OtHoursDouble = (TimeSpan?)otDoubleCombined,
+                                OtHoursWeeklyDayOff = (TimeSpan?)existingTimesheet.OtHoursWeeklyDayOff,
+                                OtHoursWeeklyHalfDayOff = (TimeSpan?)existingTimesheet.OtHoursWeeklyHalfDayOff,
+                                OtHoursPoya = (TimeSpan?)existingTimesheet.OtHoursPoya,
+                                OtHoursBankHoliday = (TimeSpan?)existingTimesheet.OtHoursBankHoliday,
+                                OtHoursSunday = (TimeSpan?)existingTimesheet.OtHoursSunday,
+                                PayType = (string?)existingTimesheet.PayType,
+                                FromShiftBlock = false
+                            }
+                            : savedShiftBlock != null
+                                ? new
+                                {
+                                    ShiftBlockId = savedShiftBlock.ShiftBlockIdFirstShift,
+                                    InTime = (TimeSpan?)null,
+                                    OutDate = (DateTime?)defaultOutDate,
+                                    OutTime = (TimeSpan?)null,
+                                    DayType = "Normal",
+                                    WorkHours = (TimeSpan?)null,
+
+                                    FirstShiftBlockId = savedShiftBlock.ShiftBlockIdFirstShift,
+                                    FirstInTime = (TimeSpan?)null,
+                                    FirstOutDate = (DateTime?)defaultOutDate,
+                                    FirstOutTime = (TimeSpan?)null,
+                                    SecondShiftBlockId = savedShiftBlock.ShiftBlockIdSecondShift,
+                                    SecondInTime = (TimeSpan?)null,
+                                    SecondOutDate = (DateTime?)defaultOutDate,
+                                    SecondOutTime = (TimeSpan?)null,
+
+                                    LateHours = (TimeSpan?)null,
+                                    OtHoursNormal = (TimeSpan?)null,
+                                    OtHoursDouble = (TimeSpan?)otDoubleCombined,
+                                    OtHoursWeeklyDayOff = (TimeSpan?)null,
+                                    OtHoursWeeklyHalfDayOff = (TimeSpan?)null,
+                                    OtHoursPoya = (TimeSpan?)null,
+                                    OtHoursBankHoliday = (TimeSpan?)null,
+                                    OtHoursSunday = (TimeSpan?)null,
+                                    PayType = (string?)null,
+                                    FromShiftBlock = true
+                                }
+                                : null,
+
+                        ActiveLeave = dayLeaves,
+                        IsBlocked = isBlockedByOtherLeave,
+                        OtherLeaveType = otherLeaveType,
+
+                        HasFullNight = hasFullNight,
+                        NightLockedByShift = isNightFromShift,
+
+                        IsPoya = isPoya,
+                        IsBankHoliday = isBankHoliday,
+                        IsMercantile = isMercantile,
+                        IsHoliday = isHoliday,
+                        IsHalfDayOfWeek = isHalfDayOfWeek,
+
+                        IsWeeklyDayOff = isWeeklyDayOff,
+                        IsWeeklyHalfDayOff = isWeeklyHalfDayOff,
+
+                        AllowFullDayLeave = allowFullDayLeave,
+                        AllowHalfDayLeave = allowHalfDayLeave,
+
+                        HasAnnualLeave = hasAnnualLeave,
+                        HasAnnualHalfLeave = hasAnnualHalfLeave,
+                        HasCasualLeave = hasCasualLeave,
+                        HasCasualHalfLeave = hasCasualHalfLeave,
+                        HasSickLeave = hasSickLeave,
+                        HasSickHalfLeave = hasSickHalfLeave,
+
+                        WorkHours = existingTimesheet?.WorkHours?.ToString(@"hh\:mm") ?? "00:00",
+                        LateHours = existingTimesheet?.LateHours?.ToString(@"hh\:mm") ?? "00:00",
+                        OtNormal = existingTimesheet?.OtHoursNormal?.ToString(@"hh\:mm") ?? "00:00",
+                        OtDouble = otDoubleCombined.ToString(@"hh\:mm"),
+
+                        IsWeekend = currentDate.DayOfWeek == DayOfWeek.Saturday ||
+                                             currentDate.DayOfWeek == DayOfWeek.Sunday,
+                        SalaryStartDayUsed = salaryStartDay
+                    };
+
+                    timesheetData.Add(dayData);
+                    currentDate = currentDate.AddDays(1);
+                }
+
+                // ── 5. Return ──
+                return Ok(new
+                {
+                    success = true,
+                    data = new
+                    {
+                        Days = timesheetData,
+                        StartDate = startDate,
+                        EndDate = endDate,
+                        EmployeeShiftType = employeeShiftType,
+                        PeriodInfo = new
+                        {
+                            Year = targetYear,
+                            Month = targetMonth,
+                            MonthName = GetMonthNameFromNumber(targetMonth),
+                            SalaryStartDay = salaryStartDay,
+                            DepartmentId = employee.DepartmentId,
+                            DepartmentName = employee.DepartmentName ?? "No Department",
+                            DepartmentType = !string.IsNullOrEmpty(employee.DepartmentName) &&
+                                employee.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase)
+                                ? "Office" : "Wages",
+                            SalaryStartDate_Office = companySettings.SalaryStartDate_Office,
+                            SalaryStartDate_Wages = companySettings.SalaryStartDate_Wages
+                        }
+                    }
+                });
             }
-        });
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "Error getting timesheet for employee {EmployeeId}", employeeId);
-        return StatusCode(500, new { success = false, message = ex.Message });
-    }
-}
-// ============================================================
-// POST /api/attendance/report/leave/run
-//   Runs the whole Leave report server-side.
-//   One HTTP round-trip, regardless of how many employees/periods.
-// ============================================================
-[HttpPost("report/leave/run")]
-public async Task<IActionResult> RunLeaveReport([FromBody] LeaveReportRequest req)
-{
-    try
-    {
-        if (req == null || req.CompanyId <= 0)
-            return BadRequest(new { success = false, message = "Invalid request" });
-
-        // ── 1. Load employees matching the scope ──
-        var empQuery = _context.Employees
-            .AsNoTracking()
-            .Where(e => e.CompanyId == req.CompanyId && e.IsActive == true);
-
-        if (req.Scope == "selected")
-        {
-            if (!req.EmployeeId.HasValue)
-                return BadRequest(new { success = false, message = "EmployeeId required for selected scope" });
-            empQuery = empQuery.Where(e => e.Id == req.EmployeeId.Value);
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting timesheet for employee {EmployeeId}", employeeId);
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
         }
-        else if (req.Scope == "lines")
+        // ============================================================
+        // POST /api/attendance/report/leave/run
+        //   Runs the whole Leave report server-side.
+        //   One HTTP round-trip, regardless of how many employees/periods.
+        // ============================================================
+        [HttpPost("report/leave/run")]
+        public async Task<IActionResult> RunLeaveReport([FromBody] LeaveReportRequest req)
         {
-            if (!req.DepartmentId.HasValue)
-                return BadRequest(new { success = false, message = "DepartmentId required for lines scope" });
-            empQuery = empQuery.Where(e => e.DepartmentId == req.DepartmentId.Value);
-        }
+            try
+            {
+                if (req == null || req.CompanyId <= 0)
+                    return BadRequest(new { success = false, message = "Invalid request" });
 
-        var employees = await empQuery
-    .Join(_context.Company_Departments,
-          e => e.DepartmentId, d => d.Id,
-          (e, d) => new
-          {
-              e.Id,
-              e.EPFNo,
-              e.FirstName,
-              e.LastName,
-              e.CompanyId,
-              DepartmentName = d.DepartmentName
-          })
-    .OrderBy(x => x.EPFNo)
-    .ToListAsync();
-        if (!employees.Any())
-            return Ok(new { success = true, data = new { mode = req.PeriodMode, periods = new List<LeavePeriodBlock>() } });
+                // ── 1. Load employees matching the scope ──
+                var empQuery = _context.Employees
+                    .AsNoTracking()
+                    .Where(e => e.CompanyId == req.CompanyId && e.IsActive == true);
 
-        var employeeIds = employees.Select(e => e.Id).ToList();
-        var empById     = employees.ToDictionary(e => e.Id);
+                if (req.Scope == "selected")
+                {
+                    if (!req.EmployeeId.HasValue)
+                        return BadRequest(new { success = false, message = "EmployeeId required for selected scope" });
+                    empQuery = empQuery.Where(e => e.Id == req.EmployeeId.Value);
+                }
+                else if (req.Scope == "lines")
+                {
+                    if (!req.DepartmentId.HasValue)
+                        return BadRequest(new { success = false, message = "DepartmentId required for lines scope" });
+                    empQuery = empQuery.Where(e => e.DepartmentId == req.DepartmentId.Value);
+                }
 
-        // ── 2. Company settings (needed for salary-period start day) ──
-        var settings = await _companySettingsService.GetCompanySettingsAsync(req.CompanyId);
-        if (settings == null)
-            return BadRequest(new { success = false, message = "Company settings not found" });
+                var employees = await empQuery
+            .Join(_context.Company_Departments,
+                  e => e.DepartmentId, d => d.Id,
+                  (e, d) => new
+                  {
+                      e.Id,
+                      e.EPFNo,
+                      e.FirstName,
+                      e.LastName,
+                      e.CompanyId,
+                      DepartmentName = d.DepartmentName
+                  })
+            .OrderBy(x => x.EPFNo)
+            .ToListAsync();
+                if (!employees.Any())
+                    return Ok(new { success = true, data = new { mode = req.PeriodMode, periods = new List<LeavePeriodBlock>() } });
 
-        using var conn = new SqlConnection(_connectionString);
+                var employeeIds = employees.Select(e => e.Id).ToList();
+                var empById = employees.ToDictionary(e => e.Id);
 
-        // ════════════════════════════════════════════════════════════════
-        //  RANGE MODE
-        // ════════════════════════════════════════════════════════════════
-        if (string.Equals(req.PeriodMode, "range", StringComparison.OrdinalIgnoreCase))
-        {
-            if (!DateTime.TryParse(req.FromDate, out var from) || !DateTime.TryParse(req.ToDate, out var to))
-                return BadRequest(new { success = false, message = "Invalid From/To date" });
+                // ── 2. Company settings (needed for salary-period start day) ──
+                var settings = await _companySettingsService.GetCompanySettingsAsync(req.CompanyId);
+                if (settings == null)
+                    return BadRequest(new { success = false, message = "Company settings not found" });
 
-            if (from > to)
-                return BadRequest(new { success = false, message = "From date must be before To date" });
+                using var conn = new SqlConnection(_connectionString);
 
-            var toEnd = to.Date.AddDays(1).AddSeconds(-1);
+                // ════════════════════════════════════════════════════════════════
+                //  RANGE MODE
+                // ════════════════════════════════════════════════════════════════
+                if (string.Equals(req.PeriodMode, "range", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!DateTime.TryParse(req.FromDate, out var from) || !DateTime.TryParse(req.ToDate, out var to))
+                        return BadRequest(new { success = false, message = "Invalid From/To date" });
 
-            // One aggregate query for the whole date range, all employees
-            const string sql = @"
+                    if (from > to)
+                        return BadRequest(new { success = false, message = "From date must be before To date" });
+
+                    var toEnd = to.Date.AddDays(1).AddSeconds(-1);
+
+                    // One aggregate query for the whole date range, all employees
+                    const string sql = @"
                 SELECT EmployeeId, LeaveDate, LeaveType, IsHalfDay
                 FROM [Leave]
                 WHERE EmployeeId IN @Ids
@@ -1071,137 +1106,137 @@ public async Task<IActionResult> RunLeaveReport([FromBody] LeaveReportRequest re
                   AND Status = 'Approved'
                 ORDER BY EmployeeId, LeaveDate";
 
-            var rows = await conn.QueryAsync<dynamic>(sql,
-                new { Ids = employeeIds, From = from.Date, To = toEnd });
+                    var rows = await conn.QueryAsync<dynamic>(sql,
+                        new { Ids = employeeIds, From = from.Date, To = toEnd });
 
-            // Group by employee, then per-day matrix
-            var rangeBlocks = new List<LeaveRangeEmployeeBlock>();
+                    // Group by employee, then per-day matrix
+                    var rangeBlocks = new List<LeaveRangeEmployeeBlock>();
 
-            foreach (var emp in employees)
-            {
-                var empRows = rows.Where(r => (int)r.EmployeeId == emp.Id).ToList();
-                if (!empRows.Any()) continue;
-
-                var dayMap = new Dictionary<string, LeaveDayRow>();
-
-                foreach (var r in empRows)
-                {
-                    var d        = ((DateTime)r.LeaveDate).Date;
-                    var key      = d.ToString("yyyy-MM-dd");
-                    var type     = ((string?)r.LeaveType ?? "").Trim().ToLowerInvariant();
-                    var isHalf   = (bool?)r.IsHalfDay ?? false;
-                    var add      = isHalf ? 0.5 : 1.0;
-
-                    if (!dayMap.TryGetValue(key, out var day))
+                    foreach (var emp in employees)
                     {
-                        day = new LeaveDayRow { Date = key };
-                        dayMap[key] = day;
+                        var empRows = rows.Where(r => (int)r.EmployeeId == emp.Id).ToList();
+                        if (!empRows.Any()) continue;
+
+                        var dayMap = new Dictionary<string, LeaveDayRow>();
+
+                        foreach (var r in empRows)
+                        {
+                            var d = ((DateTime)r.LeaveDate).Date;
+                            var key = d.ToString("yyyy-MM-dd");
+                            var type = ((string?)r.LeaveType ?? "").Trim().ToLowerInvariant();
+                            var isHalf = (bool?)r.IsHalfDay ?? false;
+                            var add = isHalf ? 0.5 : 1.0;
+
+                            if (!dayMap.TryGetValue(key, out var day))
+                            {
+                                day = new LeaveDayRow { Date = key };
+                                dayMap[key] = day;
+                            }
+
+                            switch (type)
+                            {
+                                case "annual":
+                                    if (isHalf) day.AnnualHalf += add; else day.Annual += add;
+                                    break;
+                                case "casual":
+                                    if (isHalf) day.CasualHalf += add; else day.Casual += add;
+                                    break;
+                                case "sick":
+                                    if (isHalf) day.SickHalf += add; else day.Sick += add;
+                                    break;
+                                default:
+                                    day.Other += add;
+                                    if (string.IsNullOrEmpty(day.OtherType))
+                                        day.OtherType = (string?)r.LeaveType ?? "Other";
+                                    break;
+                            }
+                        }
+
+                        rangeBlocks.Add(new LeaveRangeEmployeeBlock
+                        {
+                            EmployeeId = emp.Id,
+                            EpfNo = emp.EPFNo,
+                            EmployeeName = $"{emp.FirstName} {emp.LastName}".Trim(),
+                            DepartmentName = emp.DepartmentName ?? "",
+                            Days = dayMap.Values.OrderBy(d => d.Date).ToList()
+                        });
                     }
 
-                    switch (type)
+                    return Ok(new
                     {
-                        case "annual":
-                            if (isHalf) day.AnnualHalf += add; else day.Annual += add;
-                            break;
-                        case "casual":
-                            if (isHalf) day.CasualHalf += add; else day.Casual += add;
-                            break;
-                        case "sick":
-                            if (isHalf) day.SickHalf += add; else day.Sick += add;
-                            break;
-                        default:
-                            day.Other += add;
-                            if (string.IsNullOrEmpty(day.OtherType))
-                                day.OtherType = (string?)r.LeaveType ?? "Other";
-                            break;
-                    }
+                        success = true,
+                        data = new
+                        {
+                            mode = "range",
+                            from = from.ToString("yyyy-MM-dd"),
+                            to = to.ToString("yyyy-MM-dd"),
+                            employees = rangeBlocks
+                        }
+                    });
                 }
 
-                rangeBlocks.Add(new LeaveRangeEmployeeBlock
-                {
-                    EmployeeId     = emp.Id,
-                    EpfNo          = emp.EPFNo,
-                    EmployeeName   = $"{emp.FirstName} {emp.LastName}".Trim(),
-                    DepartmentName = emp.DepartmentName ?? "",
-                    Days           = dayMap.Values.OrderBy(d => d.Date).ToList()
-                });
-            }
+                // ════════════════════════════════════════════════════════════════
+                //  SUMMARY MODE
+                // ════════════════════════════════════════════════════════════════
+                if (!req.FromYear.HasValue || string.IsNullOrWhiteSpace(req.FromMonthName)
+                    || !req.ToYear.HasValue || string.IsNullOrWhiteSpace(req.ToMonthName))
+                    return BadRequest(new { success = false, message = "From/To year+month required for summary mode" });
 
-            return Ok(new
-            {
-                success = true,
-                data = new
+                int fromMon = GetMonthNumber(req.FromMonthName);
+                int toMon = GetMonthNumber(req.ToMonthName);
+                if (fromMon == 0 || toMon == 0)
+                    return BadRequest(new { success = false, message = "Invalid month name" });
+
+                // Build the month list
+                var months = new List<(int year, int month, string monthName)>();
+                int curY = req.FromYear.Value;
+                int curM = fromMon;
+                int endY = req.ToYear.Value;
+                int endM = toMon;
+
+                if (curY * 12 + curM > endY * 12 + endM)
+                    return BadRequest(new { success = false, message = "From must be <= To" });
+
+                while (curY < endY || (curY == endY && curM <= endM))
                 {
-                    mode = "range",
-                    from = from.ToString("yyyy-MM-dd"),
-                    to   = to.ToString("yyyy-MM-dd"),
-                    employees = rangeBlocks
+                    months.Add((curY, curM, GetMonthNameFromNumber(curM)));
+                    curM++; if (curM > 12) { curM = 1; curY++; }
                 }
-            });
-        }
 
-        // ════════════════════════════════════════════════════════════════
-        //  SUMMARY MODE
-        // ════════════════════════════════════════════════════════════════
-        if (!req.FromYear.HasValue || string.IsNullOrWhiteSpace(req.FromMonthName)
-            || !req.ToYear.HasValue || string.IsNullOrWhiteSpace(req.ToMonthName))
-            return BadRequest(new { success = false, message = "From/To year+month required for summary mode" });
+                // Fetch payroll status for ALL months in a single SQL query
+                var monthKeys = months.Select(m => m.monthName).ToList();
 
-        int fromMon = GetMonthNumber(req.FromMonthName);
-        int toMon   = GetMonthNumber(req.ToMonthName);
-        if (fromMon == 0 || toMon == 0)
-            return BadRequest(new { success = false, message = "Invalid month name" });
-
-        // Build the month list
-        var months = new List<(int year, int month, string monthName)>();
-        int curY = req.FromYear.Value;
-        int curM = fromMon;
-        int endY = req.ToYear.Value;
-        int endM = toMon;
-
-        if (curY * 12 + curM > endY * 12 + endM)
-            return BadRequest(new { success = false, message = "From must be <= To" });
-
-        while (curY < endY || (curY == endY && curM <= endM))
-        {
-            months.Add((curY, curM, GetMonthNameFromNumber(curM)));
-            curM++; if (curM > 12) { curM = 1; curY++; }
-        }
-
-        // Fetch payroll status for ALL months in a single SQL query
-        var monthKeys = months.Select(m => m.monthName).ToList();
-
-        const string statusSql = @"
+                const string statusSql = @"
             SELECT year, month, [processing] AS Processing, [locked] AS Locked
             FROM Payroll_Process
             WHERE company_id = @CompanyId
               AND year = @Year
               AND month IN @Months";
 
-        // Since year might span multiple years, loop distinct years (usually 1)
-        var statusMap = new Dictionary<string, (bool exists, bool locked, bool processing)>();
-        foreach (var yearGrp in months.GroupBy(m => m.year))
-        {
-            var rs = await conn.QueryAsync<dynamic>(statusSql, new
-            {
-                CompanyId = req.CompanyId,
-                Year      = yearGrp.Key,
-                Months    = yearGrp.Select(m => m.monthName).ToList()
-            });
+                // Since year might span multiple years, loop distinct years (usually 1)
+                var statusMap = new Dictionary<string, (bool exists, bool locked, bool processing)>();
+                foreach (var yearGrp in months.GroupBy(m => m.year))
+                {
+                    var rs = await conn.QueryAsync<dynamic>(statusSql, new
+                    {
+                        CompanyId = req.CompanyId,
+                        Year = yearGrp.Key,
+                        Months = yearGrp.Select(m => m.monthName).ToList()
+                    });
 
-            foreach (var r in rs)
-            {
-                var k = $"{yearGrp.Key}-{r.month}";
-                statusMap[k] = (true, (bool)(r.Locked ?? false), (bool)(r.Processing ?? false));
-            }
-        }
+                    foreach (var r in rs)
+                    {
+                        var k = $"{yearGrp.Key}-{r.month}";
+                        statusMap[k] = (true, (bool)(r.Locked ?? false), (bool)(r.Processing ?? false));
+                    }
+                }
 
-        // Fetch employee → start day (Office vs Wages)
-        int startDayWages  = settings.SalaryStartDate_Wages;
-        int startDayOffice = settings.SalaryStartDate_Office;
+                // Fetch employee → start day (Office vs Wages)
+                int startDayWages = settings.SalaryStartDate_Wages;
+                int startDayOffice = settings.SalaryStartDate_Office;
 
-        // Aggregate SQL per period — grouped buckets per (employee, leave type)
-        const string bucketSql = @"
+                // Aggregate SQL per period — grouped buckets per (employee, leave type)
+                const string bucketSql = @"
             SELECT
                 EmployeeId,
                 ISNULL(LeaveType, 'Unknown') AS LeaveType,
@@ -1213,179 +1248,179 @@ public async Task<IActionResult> RunLeaveReport([FromBody] LeaveReportRequest re
               AND Status = 'Approved'
             GROUP BY EmployeeId, LeaveType";
 
-        var periodBlocks = new List<LeavePeriodBlock>();
+                var periodBlocks = new List<LeavePeriodBlock>();
 
-        foreach (var (year, month, monthName) in months)
-        {
-            var sk = $"{year}-{monthName}";
-            bool exists     = statusMap.TryGetValue(sk, out var st) && st.exists;
-            bool locked     = exists && st.locked;
-            bool processing = exists && st.processing;
-
-            if (!exists) continue;      // skip periods with no payroll record
-
-            // Salary period date range — may differ per employee (office vs wages)
-            // Do two aggregate queries: one for Office emp, one for Wages emp
-            var officeEmps = employees
-                .Where(e => string.Equals(e.DepartmentName, "Office", StringComparison.OrdinalIgnoreCase))
-                .Select(e => e.Id).ToList();
-            var wagesEmps = employees
-                .Where(e => !string.Equals(e.DepartmentName, "Office", StringComparison.OrdinalIgnoreCase))
-                .Select(e => e.Id).ToList();
-
-            var bucketMap = new Dictionary<int, Dictionary<string, double>>();
-
-            async Task FetchForGroupAsync(List<int> ids, int startDay)
-            {
-                if (!ids.Any()) return;
-                var (fromDate, toDate) = GetSalaryPeriodRange(year, month, startDay);
-
-                var rs = await conn.QueryAsync<dynamic>(bucketSql, new
+                foreach (var (year, month, monthName) in months)
                 {
-                    Ids = ids,
-                    From = fromDate,
-                    To   = toDate
-                });
+                    var sk = $"{year}-{monthName}";
+                    bool exists = statusMap.TryGetValue(sk, out var st) && st.exists;
+                    bool locked = exists && st.locked;
+                    bool processing = exists && st.processing;
 
-                foreach (var r in rs)
-                {
-                    int empId    = (int)r.EmployeeId;
-                    string type  = (string)r.LeaveType;
-                    double days  = (double)(decimal)r.Days;
+                    if (!exists) continue;      // skip periods with no payroll record
 
-                    if (!bucketMap.TryGetValue(empId, out var dict))
+                    // Salary period date range — may differ per employee (office vs wages)
+                    // Do two aggregate queries: one for Office emp, one for Wages emp
+                    var officeEmps = employees
+                        .Where(e => string.Equals(e.DepartmentName, "Office", StringComparison.OrdinalIgnoreCase))
+                        .Select(e => e.Id).ToList();
+                    var wagesEmps = employees
+                        .Where(e => !string.Equals(e.DepartmentName, "Office", StringComparison.OrdinalIgnoreCase))
+                        .Select(e => e.Id).ToList();
+
+                    var bucketMap = new Dictionary<int, Dictionary<string, double>>();
+
+                    async Task FetchForGroupAsync(List<int> ids, int startDay)
                     {
-                        dict = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-                        bucketMap[empId] = dict;
+                        if (!ids.Any()) return;
+                        var (fromDate, toDate) = GetSalaryPeriodRange(year, month, startDay);
+
+                        var rs = await conn.QueryAsync<dynamic>(bucketSql, new
+                        {
+                            Ids = ids,
+                            From = fromDate,
+                            To = toDate
+                        });
+
+                        foreach (var r in rs)
+                        {
+                            int empId = (int)r.EmployeeId;
+                            string type = (string)r.LeaveType;
+                            double days = (double)(decimal)r.Days;
+
+                            if (!bucketMap.TryGetValue(empId, out var dict))
+                            {
+                                dict = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+                                bucketMap[empId] = dict;
+                            }
+
+                            if (dict.ContainsKey(type)) dict[type] += days;
+                            else dict[type] = days;
+                        }
                     }
 
-                    if (dict.ContainsKey(type)) dict[type] += days;
-                    else                        dict[type]  = days;
+                    await FetchForGroupAsync(officeEmps, startDayOffice);
+                    await FetchForGroupAsync(wagesEmps, startDayWages);
+
+                    // Build per-employee rows
+                    var empRows = new List<LeavePeriodEmployeeRow>();
+
+                    foreach (var emp in employees)
+                    {
+                        var dict = bucketMap.TryGetValue(emp.Id, out var d)
+                            ? d
+                            : new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+
+                        var buckets = new LeaveBuckets();
+
+                        foreach (var kv in dict)
+                        {
+                            var cat = kv.Key;
+                            double days = kv.Value;
+                            bool isHalf =
+            cat.EndsWith("1/2", StringComparison.OrdinalIgnoreCase) ||
+            cat.EndsWith("½", StringComparison.OrdinalIgnoreCase) ||
+            cat.IndexOf("(half)", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            cat.EndsWith("half", StringComparison.OrdinalIgnoreCase) ||
+            (Math.Abs(days * 2 - Math.Round(days * 2)) < 1e-9 && (days % 1) != 0);
+
+                            var baseName = System.Text.RegularExpressions.Regex
+                                .Replace(cat, @"\s*(1/2|½|\(half\)|half)$", "",
+                                    System.Text.RegularExpressions.RegexOptions.IgnoreCase)
+                                .Trim();
+
+                            LeaveBucket target;
+                            if (baseName.StartsWith("annual", StringComparison.OrdinalIgnoreCase)) target = buckets.Annual;
+                            else if (baseName.StartsWith("casual", StringComparison.OrdinalIgnoreCase)) target = buckets.Casual;
+                            else if (baseName.StartsWith("sick", StringComparison.OrdinalIgnoreCase)) target = buckets.Sick;
+                            else target = buckets.Other;
+
+                            if (isHalf) target.Half += days;
+                            else target.Full += days;
+                        }
+
+                        double total =
+                            buckets.Annual.Full + buckets.Annual.Half +
+                            buckets.Casual.Full + buckets.Casual.Half +
+                            buckets.Sick.Full + buckets.Sick.Half +
+                            buckets.Other.Full;
+
+                        if (total <= 0) continue;   // skip employees with zero in this period
+
+                        empRows.Add(new LeavePeriodEmployeeRow
+                        {
+                            EmployeeId = emp.Id,
+                            EpfNo = emp.EPFNo,
+                            EmployeeName = $"{emp.FirstName} {emp.LastName}".Trim(),
+                            DepartmentName = emp.DepartmentName ?? "",
+                            Buckets = buckets,
+                            Total = Math.Round(total, 2)
+                        });
+                    }
+
+                    if (!empRows.Any()) continue;
+
+                    periodBlocks.Add(new LeavePeriodBlock
+                    {
+                        Year = year,
+                        MonthName = monthName,
+                        Locked = locked,
+                        Processing = processing,
+                        Employees = empRows.OrderBy(e => e.EpfNo).ToList()
+                    });
                 }
-            }
 
-            await FetchForGroupAsync(officeEmps, startDayOffice);
-            await FetchForGroupAsync(wagesEmps,  startDayWages);
-
-            // Build per-employee rows
-            var empRows = new List<LeavePeriodEmployeeRow>();
-
-            foreach (var emp in employees)
-            {
-                var dict = bucketMap.TryGetValue(emp.Id, out var d)
-                    ? d
-                    : new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-
-                var buckets = new LeaveBuckets();
-
-                foreach (var kv in dict)
+                return Ok(new
                 {
-                    var cat      = kv.Key;
-                    double days  = kv.Value;
-                    bool isHalf =
-    cat.EndsWith("1/2", StringComparison.OrdinalIgnoreCase) ||
-    cat.EndsWith("½",   StringComparison.OrdinalIgnoreCase) ||
-    cat.IndexOf("(half)", StringComparison.OrdinalIgnoreCase) >= 0 ||
-    cat.EndsWith("half", StringComparison.OrdinalIgnoreCase) ||
-    (Math.Abs(days * 2 - Math.Round(days * 2)) < 1e-9 && (days % 1) != 0);
-
-                    var baseName = System.Text.RegularExpressions.Regex
-                        .Replace(cat, @"\s*(1/2|½|\(half\)|half)$", "",
-                            System.Text.RegularExpressions.RegexOptions.IgnoreCase)
-                        .Trim();
-
-                   LeaveBucket target;
-if      (baseName.StartsWith("annual", StringComparison.OrdinalIgnoreCase)) target = buckets.Annual;
-else if (baseName.StartsWith("casual", StringComparison.OrdinalIgnoreCase)) target = buckets.Casual;
-else if (baseName.StartsWith("sick",   StringComparison.OrdinalIgnoreCase)) target = buckets.Sick;
-else                                                                        target = buckets.Other;
-
-                    if (isHalf) target.Half += days;
-                    else        target.Full += days;
-                }
-
-                double total =
-                    buckets.Annual.Full + buckets.Annual.Half +
-                    buckets.Casual.Full + buckets.Casual.Half +
-                    buckets.Sick.Full   + buckets.Sick.Half   +
-                    buckets.Other.Full;
-
-                if (total <= 0) continue;   // skip employees with zero in this period
-
-                empRows.Add(new LeavePeriodEmployeeRow
-                {
-                    EmployeeId     = emp.Id,
-                    EpfNo          = emp.EPFNo,
-                    EmployeeName   = $"{emp.FirstName} {emp.LastName}".Trim(),
-                    DepartmentName = emp.DepartmentName ?? "",
-                    Buckets        = buckets,
-                    Total          = Math.Round(total, 2)
+                    success = true,
+                    data = new
+                    {
+                        mode = "summary",
+                        periods = periodBlocks
+                    }
                 });
             }
-
-            if (!empRows.Any()) continue;
-
-            periodBlocks.Add(new LeavePeriodBlock
+            catch (Exception ex)
             {
-                Year      = year,
-                MonthName = monthName,
-                Locked    = locked,
-                Processing = processing,
-                Employees = empRows.OrderBy(e => e.EpfNo).ToList()
-            });
-        }
-
-        return Ok(new
-        {
-            success = true,
-            data = new
-            {
-                mode = "summary",
-                periods = periodBlocks
+                _logger.LogError(ex, "RunLeaveReport failed");
+                return StatusCode(500, new { success = false, message = ex.Message });
             }
-        });
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "RunLeaveReport failed");
-        return StatusCode(500, new { success = false, message = ex.Message });
-    }
-}
-// Add once, inside AttendanceController (e.g. next to EmployeeRow)
-private class LeaveRow
-{
-    public int EmployeeId { get; set; }
-    public DateTime LeaveDate { get; set; }
-    public string LeaveType { get; set; } = "";
-    public bool IsHalfDay { get; set; }
-}
-[HttpPost("report/nopay/run")]
-public async Task<IActionResult> RunNoPayReport([FromBody] LeaveReportRequest req)
-{
-    try
-    {
-        if (req == null || req.CompanyId <= 0)
-            return BadRequest(new { success = false, message = "Invalid request" });
-
-        var employees = await ResolveReportEmployeesAsync(req);
-        if (!employees.Any())
-            return Ok(new { success = true, data = new { mode = req.PeriodMode, employees = new List<object>(), periods = new List<object>() } });
-
-        var ids = employees.Select(e => e.Id).ToList();
-
-        using var conn = new SqlConnection(_connectionString);
-
-        // ── RANGE (unchanged — already a single aggregate) ──
-        if (string.Equals(req.PeriodMode, "range", StringComparison.OrdinalIgnoreCase))
+        }
+        // Add once, inside AttendanceController (e.g. next to EmployeeRow)
+        private class LeaveRow
         {
-            if (!DateTime.TryParse(req.FromDate, out var from) || !DateTime.TryParse(req.ToDate, out var to))
-                return BadRequest(new { success = false, message = "Invalid From/To date" });
-            if (from > to)
-                return BadRequest(new { success = false, message = "From must be before To" });
+            public int EmployeeId { get; set; }
+            public DateTime LeaveDate { get; set; }
+            public string LeaveType { get; set; } = "";
+            public bool IsHalfDay { get; set; }
+        }
+        [HttpPost("report/nopay/run")]
+        public async Task<IActionResult> RunNoPayReport([FromBody] LeaveReportRequest req)
+        {
+            try
+            {
+                if (req == null || req.CompanyId <= 0)
+                    return BadRequest(new { success = false, message = "Invalid request" });
 
-            var toEnd = to.Date.AddDays(1).AddSeconds(-1);
+                var employees = await ResolveReportEmployeesAsync(req);
+                if (!employees.Any())
+                    return Ok(new { success = true, data = new { mode = req.PeriodMode, employees = new List<object>(), periods = new List<object>() } });
 
-            const string sql = @"
+                var ids = employees.Select(e => e.Id).ToList();
+
+                using var conn = new SqlConnection(_connectionString);
+
+                // ── RANGE (unchanged — already a single aggregate) ──
+                if (string.Equals(req.PeriodMode, "range", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!DateTime.TryParse(req.FromDate, out var from) || !DateTime.TryParse(req.ToDate, out var to))
+                        return BadRequest(new { success = false, message = "Invalid From/To date" });
+                    if (from > to)
+                        return BadRequest(new { success = false, message = "From must be before To" });
+
+                    var toEnd = to.Date.AddDays(1).AddSeconds(-1);
+
+                    const string sql = @"
                 SELECT EmployeeId, FirstInDate AS [Date], DayType
                 FROM TimeSheet
                 WHERE EmployeeId IN @Ids
@@ -1394,67 +1429,67 @@ public async Task<IActionResult> RunNoPayReport([FromBody] LeaveReportRequest re
                   AND DayType IN ('No Pay', 'No Pay - Half')
                 ORDER BY EmployeeId, FirstInDate";
 
-            var rows = await conn.QueryAsync<dynamic>(sql,
-                new { Ids = ids, From = from.Date, To = toEnd });
+                    var rows = await conn.QueryAsync<dynamic>(sql,
+                        new { Ids = ids, From = from.Date, To = toEnd });
 
-            var result = new List<object>();
-            foreach (var emp in employees)
-            {
-                var empRows = rows.Where(r => (int)r.EmployeeId == emp.Id).ToList();
-                if (!empRows.Any()) continue;
-
-                result.Add(new
-                {
-                    employeeId     = emp.Id,
-                    employeeName   = $"{emp.FirstName} {emp.LastName}".Trim(),
-                    epfNo          = emp.EPFNo,
-                    departmentName = emp.DepartmentName ?? "",
-                    rows = empRows.Select(r => new
+                    var result = new List<object>();
+                    foreach (var emp in employees)
                     {
-                        date    = (DateTime)r.Date,
-                        dayType = (string?)r.DayType ?? ""
-                    }).ToList()
-                });
-            }
+                        var empRows = rows.Where(r => (int)r.EmployeeId == emp.Id).ToList();
+                        if (!empRows.Any()) continue;
 
-            return Ok(new
-            {
-                success = true,
-                data = new
-                {
-                    mode = "range",
-                    from = from.ToString("yyyy-MM-dd"),
-                    to   = to.ToString("yyyy-MM-dd"),
-                    employees = result
+                        result.Add(new
+                        {
+                            employeeId = emp.Id,
+                            employeeName = $"{emp.FirstName} {emp.LastName}".Trim(),
+                            epfNo = emp.EPFNo,
+                            departmentName = emp.DepartmentName ?? "",
+                            rows = empRows.Select(r => new
+                            {
+                                date = (DateTime)r.Date,
+                                dayType = (string?)r.DayType ?? ""
+                            }).ToList()
+                        });
+                    }
+
+                    return Ok(new
+                    {
+                        success = true,
+                        data = new
+                        {
+                            mode = "range",
+                            from = from.ToString("yyyy-MM-dd"),
+                            to = to.ToString("yyyy-MM-dd"),
+                            employees = result
+                        }
+                    });
                 }
-            });
-        }
 
-        // ════════════════════════════════════════════════════════════════
-        //  SUMMARY — batched by start-day group (Office / Wages), like Leave
-        // ════════════════════════════════════════════════════════════════
-        // ── SUMMARY ──
-var periods = BuildPeriodList(req);
+                // ════════════════════════════════════════════════════════════════
+                //  SUMMARY — batched by start-day group (Office / Wages), like Leave
+                // ════════════════════════════════════════════════════════════════
+                // ── SUMMARY ──
+                var periods = BuildPeriodList(req);
 
-var settings = await _companySettingsService.GetCompanySettingsAsync(req.CompanyId);
-if (settings == null)
-    return BadRequest(new { success = false, message = "Company settings not found" });
+                var settings = await _companySettingsService.GetCompanySettingsAsync(req.CompanyId);
+                if (settings == null)
+                    return BadRequest(new { success = false, message = "Company settings not found" });
 
-int startDayWages  = settings.SalaryStartDate_Wages;
-int startDayOffice = settings.SalaryStartDate_Office;
+                int startDayWages = settings.SalaryStartDate_Wages;
+                int startDayOffice = settings.SalaryStartDate_Office;
 
-// Split employees ONCE by start-day — NOT per period
-var officeEmps = employees
-    .Where(e => !string.IsNullOrEmpty(e.DepartmentName) &&
-                e.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
-    .Select(e => e.Id).ToList();
-var wagesEmps = employees
-    .Where(e => string.IsNullOrEmpty(e.DepartmentName) ||
-                !e.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
-    .Select(e => e.Id).ToList();
+                // Split employees ONCE by start-day — NOT per period
+                var officeEmps = employees
+                    .Where(e => !string.IsNullOrEmpty(e.DepartmentName) &&
+                                e.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
+                    .Select(e => e.Id).ToList();
+                var wagesEmps = employees
+                    .Where(e => string.IsNullOrEmpty(e.DepartmentName) ||
+                                !e.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
+                    .Select(e => e.Id).ToList();
 
-// One aggregate per start-day group — reused across every period
-const string bucketSql = @"
+                // One aggregate per start-day group — reused across every period
+                const string bucketSql = @"
     SELECT
         EmployeeId,
         ISNULL(SUM(
@@ -1467,81 +1502,81 @@ const string bucketSql = @"
       AND LateHours IS NOT NULL
     GROUP BY EmployeeId";
 
-var periodBlocks = new List<object>();
+                var periodBlocks = new List<object>();
 
-foreach (var (year, month, monthName) in periods)
-{
-    var state = await GetPayrollPeriodStateAsync(conn, req.CompanyId, year, monthName);
-    if (!state.exists) continue;
+                foreach (var (year, month, monthName) in periods)
+                {
+                    var state = await GetPayrollPeriodStateAsync(conn, req.CompanyId, year, monthName);
+                    if (!state.exists) continue;
 
-    // empId → total late hours for this period
-    var totals = new Dictionary<int, decimal>();
+                    // empId → total late hours for this period
+                    var totals = new Dictionary<int, decimal>();
 
-    async Task FetchForGroupAsync(List<int> groupIds, int startDay)
-    {
-        if (!groupIds.Any()) return;
+                    async Task FetchForGroupAsync(List<int> groupIds, int startDay)
+                    {
+                        if (!groupIds.Any()) return;
 
-        var (fromDate, toDate) = GetSalaryPeriodRange(year, month, startDay);
+                        var (fromDate, toDate) = GetSalaryPeriodRange(year, month, startDay);
 
-        var rs = await conn.QueryAsync<dynamic>(bucketSql, new
-        {
-            Ids  = groupIds,
-            From = fromDate,
-            To   = toDate
-        });
+                        var rs = await conn.QueryAsync<dynamic>(bucketSql, new
+                        {
+                            Ids = groupIds,
+                            From = fromDate,
+                            To = toDate
+                        });
 
-        foreach (var r in rs)
-        {
-            totals[(int)r.EmployeeId] = (decimal)r.TotalHours;
+                        foreach (var r in rs)
+                        {
+                            totals[(int)r.EmployeeId] = (decimal)r.TotalHours;
+                        }
+                    }
+
+                    await FetchForGroupAsync(officeEmps, startDayOffice);   // 1 query
+                    await FetchForGroupAsync(wagesEmps, startDayWages);    // 1 query
+
+                    // Shape response — only employees with late hours > 0
+                    var empRows = new List<object>();
+
+                    foreach (var emp in employees)
+                    {
+                        if (!totals.TryGetValue(emp.Id, out decimal totalHours)) continue;
+                        if (totalHours <= 0) continue;
+
+                        empRows.Add(new
+                        {
+                            employeeId = emp.Id,
+                            employeeName = $"{emp.FirstName} {emp.LastName}".Trim(),
+                            epfNo = emp.EPFNo,
+                            departmentName = emp.DepartmentName ?? "",
+                            totalHours = Math.Round(totalHours, 2)
+                        });
+                    }
+
+                    if (!empRows.Any()) continue;
+
+                    periodBlocks.Add(new
+                    {
+                        year,
+                        monthName,
+                        locked = state.locked,
+                        processing = state.processing,
+                        employees = empRows
+                    });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    data = new { mode = "summary", periods = periodBlocks }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "RunNoPayReport failed");
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
         }
-    }
-
-    await FetchForGroupAsync(officeEmps, startDayOffice);   // 1 query
-    await FetchForGroupAsync(wagesEmps,  startDayWages);    // 1 query
-
-    // Shape response — only employees with late hours > 0
-    var empRows = new List<object>();
-
-    foreach (var emp in employees)
-    {
-        if (!totals.TryGetValue(emp.Id, out decimal totalHours)) continue;
-        if (totalHours <= 0) continue;
-
-        empRows.Add(new
-        {
-            employeeId     = emp.Id,
-            employeeName   = $"{emp.FirstName} {emp.LastName}".Trim(),
-            epfNo          = emp.EPFNo,
-            departmentName = emp.DepartmentName ?? "",
-            totalHours     = Math.Round(totalHours, 2)
-        });
-    }
-
-    if (!empRows.Any()) continue;
-
-    periodBlocks.Add(new
-    {
-        year,
-        monthName,
-        locked     = state.locked,
-        processing = state.processing,
-        employees  = empRows
-    });
-}
-
-return Ok(new
-{
-    success = true,
-    data = new { mode = "summary", periods = periodBlocks }
-});
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "RunNoPayReport failed");
-        return StatusCode(500, new { success = false, message = ex.Message });
-    }
-}
-[HttpPost("report/timesheet/run")]
+        [HttpPost("report/timesheet/run")]
 public async Task<IActionResult> RunTimesheetReport([FromBody] LeaveReportRequest req)
 {
     try
@@ -1564,59 +1599,52 @@ public async Task<IActionResult> RunTimesheetReport([FromBody] LeaveReportReques
         if (settings == null)
             return BadRequest(new { success = false, message = "Company settings not found" });
 
-        int startWages  = settings.SalaryStartDate_Wages;
+        int startWages = settings.SalaryStartDate_Wages;
         int startOffice = settings.SalaryStartDate_Office;
 
         var employeeIds = employees.Select(e => e.Id).ToList();
-        var empById     = employees.ToDictionary(e => e.Id);
+        var empById = employees.ToDictionary(e => e.Id);
 
         using var conn = new SqlConnection(_connectionString);
 
         // ── 4. Compute the whole span once ──
-        //  (min over Office + Wages start days, max over Office + Wages end days)
         DateTime overallStart = DateTime.MaxValue;
-        DateTime overallEnd   = DateTime.MinValue;
+        DateTime overallEnd = DateTime.MinValue;
         foreach (var (y, m, _) in periodList)
         {
             foreach (var sd in new[] { startWages, startOffice }.Distinct())
             {
                 var (s, e) = GetSalaryPeriodRange(y, m, sd);
                 if (s < overallStart) overallStart = s;
-                if (e > overallEnd)   overallEnd   = e;
+                if (e > overallEnd) overallEnd = e;
             }
         }
 
         // ── 5. Who has TimeSheet data in that whole span? ──
-        //  One SELECT DISTINCT — this is what kills the empty cards.
         var employeesWithData = (await conn.QueryAsync<int>(@"
             SELECT DISTINCT EmployeeId
             FROM TimeSheet
             WHERE EmployeeId IN @Ids
               AND FirstInDate >= @From
               AND FirstInDate <= @To",
-            new { Ids = employeeIds, From = overallStart, To = overallEnd }))
-            .ToHashSet();
+                new { Ids = employeeIds, From = overallStart, To = overallEnd }))
+                .ToHashSet();
 
-        // If nobody has data, exit early — the frontend already handles empty array
         if (employeesWithData.Count == 0)
             return Ok(new { success = true, data = new { mode = "summary", periods = Array.Empty<object>() } });
 
-        // Trim the employee list to only those with data
         var activeEmployees = employees.Where(e => employeesWithData.Contains(e.Id)).ToList();
-        var activeIds       = activeEmployees.Select(e => e.Id).ToList();
+        var activeIds = activeEmployees.Select(e => e.Id).ToList();
 
-        // ── 6. One-shot prefetch for the active employees ──
-
-        // TimeSheets
+        // ── 6. One-shot prefetch ──
         var allTimeSheets = (await conn.QueryAsync<TRIVORA_API.Models.TimeSheet>(@"
             SELECT *
             FROM TimeSheet
             WHERE EmployeeId IN @Ids
               AND FirstInDate >= @From
               AND FirstInDate <= @To",
-            new { Ids = activeIds, From = overallStart, To = overallEnd })).ToList();
+                new { Ids = activeIds, From = overallStart, To = overallEnd })).ToList();
 
-        // Leave rows
         var allLeaves = (await conn.QueryAsync<LeaveRow>(@"
             SELECT EmployeeId, LeaveDate, LeaveType, IsHalfDay
             FROM [Leave]
@@ -1624,9 +1652,8 @@ public async Task<IActionResult> RunTimesheetReport([FromBody] LeaveReportReques
               AND LeaveDate >= @From
               AND LeaveDate <= @To
               AND Status = 'Approved'",
-            new { Ids = activeIds, From = overallStart, To = overallEnd })).ToList();
+                new { Ids = activeIds, From = overallStart, To = overallEnd })).ToList();
 
-        // Night dates
         var allNights = (await conn.QueryAsync<(int EmployeeId, DateTime Date)>(@"
             SELECT EmployeeId, [Date]
             FROM NightDates
@@ -1634,33 +1661,40 @@ public async Task<IActionResult> RunTimesheetReport([FromBody] LeaveReportReques
               AND [Date] >= @From
               AND [Date] <= @To
               AND IsFullNight = 1",
-            new { Ids = activeIds, From = overallStart, To = overallEnd })).ToList();
+                new { Ids = activeIds, From = overallStart, To = overallEnd })).ToList();
 
-        // Shift rows
         var allShifts = (await conn.QueryAsync<TRIVORA_API.Models.ShiftsTimesheet>(@"
             SELECT *
             FROM ShiftsTimesheet
             WHERE EmployeeId IN @Ids
               AND [Date] >= @From
               AND [Date] <= @To",
-            new { Ids = activeIds, From = overallStart, To = overallEnd })).ToList();
+                new { Ids = activeIds, From = overallStart, To = overallEnd })).ToList();
 
-        // Shift blocks (per-company, small table)
+        // Shift blocks (per-company, small table) — also index by id for day-level flag lookup
         var allShiftBlocks = await _context.ShiftBlocks
             .AsNoTracking()
             .Where(sb => sb.CompanyId == req.CompanyId)
             .ToListAsync();
 
-        // Calendar (per-company, small table)
+        var shiftBlockById = allShiftBlocks
+            .GroupBy(sb => sb.Id)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        // Calendar (per-company, small table) — index by date for holiday flag lookup
         var allCalendar = await _context.Calendar
             .AsNoTracking()
             .Where(c => c.CompanyId == req.CompanyId &&
                         c.Date >= overallStart && c.Date <= overallEnd)
             .ToListAsync();
 
+        var calendarByDate = allCalendar
+            .GroupBy(c => c.Date.Date)
+            .ToDictionary(g => g.Key, g => g.First());
+
         // ── 7. Index for O(1) lookups ──
-        var tsByEmp     = allTimeSheets.GroupBy(t => t.EmployeeId)
-                                       .ToDictionary(g => g.Key, g => g.ToList());
+        var tsByEmp = allTimeSheets.GroupBy(t => t.EmployeeId)
+                                   .ToDictionary(g => g.Key, g => g.ToList());
         var leavesByEmp = allLeaves.GroupBy(l => l.EmployeeId)
                                    .ToDictionary(g => g.Key, g => g.ToList());
         var nightsByEmp = allNights.GroupBy(n => n.EmployeeId)
@@ -1686,12 +1720,10 @@ public async Task<IActionResult> RunTimesheetReport([FromBody] LeaveReportReques
 
                 var (startDate, endDate) = GetSalaryPeriodRange(year, month, startDay);
 
-                // ── Filter to this period's rows (in-memory, no DB) ──
                 var empTs = tsByEmp.TryGetValue(emp.Id, out var tsAll)
                     ? tsAll.Where(t => t.FirstInDate >= startDate && t.FirstInDate <= endDate).ToList()
                     : new List<TRIVORA_API.Models.TimeSheet>();
 
-                // Per-period data check — skip employees who have data elsewhere but not here
                 if (empTs.Count == 0) continue;
 
                 var empLeaves = leavesByEmp.TryGetValue(emp.Id, out var lvAll)
@@ -1725,61 +1757,92 @@ public async Task<IActionResult> RunTimesheetReport([FromBody] LeaveReportReques
                     .Where(t => t.WorkHours.HasValue)
                     .Sum(t => (decimal)t.WorkHours!.Value.TotalHours);
 
-                decimal otNormal  = empTs.Sum(t => (decimal)(t.OtHoursNormal?.TotalHours ?? 0));
-                decimal otWOff    = empTs.Sum(t => (decimal)(t.OtHoursWeeklyDayOff?.TotalHours ?? 0));
-                decimal otWHalf   = empTs.Sum(t => (decimal)(t.OtHoursWeeklyHalfDayOff?.TotalHours ?? 0));
-                decimal otPoya    = empTs.Sum(t => (decimal)(t.OtHoursPoya?.TotalHours ?? 0));
-                decimal otBank    = empTs.Sum(t => (decimal)(t.OtHoursBankHoliday?.TotalHours ?? 0));
+                decimal otNormal = empTs.Sum(t => (decimal)(t.OtHoursNormal?.TotalHours ?? 0));
+                decimal otWOff = empTs.Sum(t => (decimal)(t.OtHoursWeeklyDayOff?.TotalHours ?? 0));
+                decimal otWHalf = empTs.Sum(t => (decimal)(t.OtHoursWeeklyHalfDayOff?.TotalHours ?? 0));
+                decimal otPoya = empTs.Sum(t => (decimal)(t.OtHoursPoya?.TotalHours ?? 0));
+                decimal otBank = empTs.Sum(t => (decimal)(t.OtHoursBankHoliday?.TotalHours ?? 0));
 
                 int totalFullNight = empNights.Count;
 
                 var summary = new
                 {
-                    periodKey               = $"{year}-{monthName}",
+                    periodKey = $"{year}-{monthName}",
                     startDate,
                     endDate,
                     totalWorkingDays,
-                    totalNoPayCount         = Math.Round(totalNoPay, 2),
-                    totalLeaveTaken         = Math.Round(totalLeaveTaken, 2),
-                    totalPayCutHours        = Math.Round(totalPayCutHours, 2),
-                    totalWorkingHours       = Math.Round(totalWorkingHours, 2),
-                    totalOtNormal           = Math.Round(otNormal, 2),
-                    totalOtWeeklyDayOff     = Math.Round(otWOff, 2),
+                    totalNoPayCount = Math.Round(totalNoPay, 2),
+                    totalLeaveTaken = Math.Round(totalLeaveTaken, 2),
+                    totalPayCutHours = Math.Round(totalPayCutHours, 2),
+                    totalWorkingHours = Math.Round(totalWorkingHours, 2),
+                    totalOtNormal = Math.Round(otNormal, 2),
+                    totalOtWeeklyDayOff = Math.Round(otWOff, 2),
                     totalOtWeeklyHalfDayOff = Math.Round(otWHalf, 2),
-                    totalOtPoya             = Math.Round(otPoya, 2),
-                    totalOtMercantile       = 0m,
-                    totalOtBankHoliday      = Math.Round(otBank, 2),
+                    totalOtPoya = Math.Round(otPoya, 2),
+                    totalOtMercantile = 0m,
+                    totalOtBankHoliday = Math.Round(otBank, 2),
                     totalFullNight
                 };
 
                 // ── Day rows ──
                 var days = new List<object>();
-                var cur  = startDate;
+                var cur = startDate;
                 while (cur <= endDate)
                 {
                     var ts = empTs.FirstOrDefault(t =>
-                        (t.FirstInDate.HasValue  && t.FirstInDate.Value.Date  == cur.Date) ||
+                        (t.FirstInDate.HasValue && t.FirstInDate.Value.Date == cur.Date) ||
                         (t.SecondInDate.HasValue && t.SecondInDate.Value.Date == cur.Date));
 
-                    // (Optional) match a saved shift for this day, if you need it downstream
                     var shift = empShifts.FirstOrDefault(s => s.Date.Date == cur.Date);
 
-                    days.Add(new
+                    // ── Effective shift block for this day (for weekly off flags) ──
+                    int? effectiveShiftBlockId =
+                        ts?.FirstShiftBlockId
+                        ?? shift?.ShiftBlockIdFirstShift
+                        ?? emp.ShiftBlockId;
+
+                    // ── Calendar flags ──
+                    calendarByDate.TryGetValue(cur.Date, out var cal);
+                    bool isPoya = cal?.IsPoya ?? false;
+                    bool isBankHoliday = cal?.IsBankHoliday ?? false;
+                    bool isMercantile = cal?.IsMercantile ?? false;
+
+                    // ── Weekly-off flags (based on the effective shift block) ──
+                    bool isWeeklyDayOff = DetermineWeeklyDayOff(
+                        cur.DayOfWeek.ToString(),
+                        effectiveShiftBlockId,
+                        shiftBlockById,
+                        half: false);
+
+                    bool isWeeklyHalfDayOff = DetermineWeeklyDayOff(
+                        cur.DayOfWeek.ToString(),
+                        effectiveShiftBlockId,
+                        shiftBlockById,
+                        half: true);
+
+                    days.Add((object)new
                     {
-                        date      = cur,
-                        dayName   = cur.DayOfWeek.ToString(),
-                        workHours = ts?.WorkHours?.ToString(@"hh\:mm")     ?? "00:00",
-                        lateHours = ts?.LateHours?.ToString(@"hh\:mm")     ?? "00:00",
-                        otNormal  = ts?.OtHoursNormal?.ToString(@"hh\:mm") ?? "00:00",
-                        otDouble  = "00:00",
+                        date = cur,
+                        dayName = cur.DayOfWeek.ToString(),
+                        workHours = ts?.WorkHours?.ToString(@"hh\:mm") ?? "00:00",
+                        lateHours = ts?.LateHours?.ToString(@"hh\:mm") ?? "00:00",
+                        otNormal = ts?.OtHoursNormal?.ToString(@"hh\:mm") ?? "00:00",
+                        otDouble = "00:00",
                         timesheetRecord = ts == null ? null : new
                         {
-                            dayType           = ts.DayType ?? "Normal",
-                            firstInTime       = ts.FirstInTime,
-                            firstOutTime      = ts.FirstOutTime,
-                            firstOutDate      = ts.FirstOutDate,
+                            dayType = ts.DayType ?? "Normal",
+                            firstInTime = ts.FirstInTime,
+                            firstOutTime = ts.FirstOutTime,
+                            firstOutDate = ts.FirstOutDate,
                             firstShiftBlockId = ts.FirstShiftBlockId
-                        }
+                        },
+
+                        // ── Holiday & weekly-off flags (drives the report's "(P/H)", "(B/H)", "(M/H)", "(W/O)", "(W/H)") ──
+                        isPoya,
+                        isBankHoliday,
+                        isMercantile,
+                        isWeeklyDayOff,
+                        isWeeklyHalfDayOff
                     });
 
                     cur = cur.AddDays(1);
@@ -1787,9 +1850,9 @@ public async Task<IActionResult> RunTimesheetReport([FromBody] LeaveReportReques
 
                 empRows.Add(new
                 {
-                    employeeId     = emp.Id,
-                    employeeName   = $"{emp.FirstName} {emp.LastName}".Trim(),
-                    epfNo          = emp.EPFNo,
+                    employeeId = emp.Id,
+                    employeeName = $"{emp.FirstName} {emp.LastName}".Trim(),
+                    epfNo = emp.EPFNo,
                     departmentName = emp.DepartmentName ?? "",
                     summary,
                     days
@@ -1802,9 +1865,9 @@ public async Task<IActionResult> RunTimesheetReport([FromBody] LeaveReportReques
             {
                 year,
                 monthName,
-                locked     = state.locked,
+                locked = state.locked,
                 processing = state.processing,
-                employees  = empRows
+                employees = empRows
             });
         }
 
@@ -1825,35 +1888,33 @@ public async Task<IActionResult> RunTimesheetReport([FromBody] LeaveReportReques
         return StatusCode(500, new { success = false, message = ex.Message });
     }
 }
-
-
-[HttpPost("report/late/run")]
-public async Task<IActionResult> RunLateReport([FromBody] LeaveReportRequest req)
-{
-    try
-    {
-        if (req == null || req.CompanyId <= 0)
-            return BadRequest(new { success = false, message = "Invalid request" });
-
-        var employees = await ResolveReportEmployeesAsync(req);
-        if (!employees.Any())
-            return Ok(new { success = true, data = new { mode = req.PeriodMode, employees = new List<object>(), periods = new List<object>() } });
-
-        var ids = employees.Select(e => e.Id).ToList();
-        using var conn = new SqlConnection(_connectionString);
-
-        // ═══════════════════════════════════════════════════════════
-        //  RANGE MODE
-        // ═══════════════════════════════════════════════════════════
-        if (string.Equals(req.PeriodMode, "range", StringComparison.OrdinalIgnoreCase))
+        [HttpPost("report/late/run")]
+        public async Task<IActionResult> RunLateReport([FromBody] LeaveReportRequest req)
         {
-            if (!DateTime.TryParse(req.FromDate, out var from) || !DateTime.TryParse(req.ToDate, out var to))
-                return BadRequest(new { success = false, message = "Invalid From/To date" });
+            try
+            {
+                if (req == null || req.CompanyId <= 0)
+                    return BadRequest(new { success = false, message = "Invalid request" });
 
-            var toEnd = to.Date.AddDays(1).AddSeconds(-1);
+                var employees = await ResolveReportEmployeesAsync(req);
+                if (!employees.Any())
+                    return Ok(new { success = true, data = new { mode = req.PeriodMode, employees = new List<object>(), periods = new List<object>() } });
 
-            // One aggregate — no per-employee loop, no employees without late hours
-            const string rangeSql = @"
+                var ids = employees.Select(e => e.Id).ToList();
+                using var conn = new SqlConnection(_connectionString);
+
+                // ═══════════════════════════════════════════════════════════
+                //  RANGE MODE
+                // ═══════════════════════════════════════════════════════════
+                if (string.Equals(req.PeriodMode, "range", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!DateTime.TryParse(req.FromDate, out var from) || !DateTime.TryParse(req.ToDate, out var to))
+                        return BadRequest(new { success = false, message = "Invalid From/To date" });
+
+                    var toEnd = to.Date.AddDays(1).AddSeconds(-1);
+
+                    // One aggregate — no per-employee loop, no employees without late hours
+                    const string rangeSql = @"
                 SELECT
                     t.EmployeeId,
                     t.FirstInDate AS [Date],
@@ -1866,74 +1927,74 @@ public async Task<IActionResult> RunLateReport([FromBody] LeaveReportRequest req
                   AND t.LateHours > '00:00:00'
                 ORDER BY t.EmployeeId, t.FirstInDate";
 
-            var rows = await conn.QueryAsync<dynamic>(rangeSql,
-                new { Ids = ids, From = from.Date, To = toEnd });
+                    var rows = await conn.QueryAsync<dynamic>(rangeSql,
+                        new { Ids = ids, From = from.Date, To = toEnd });
 
-            // Index for O(1) grouping
-            var byEmp = rows.ToLookup(r => (int)r.EmployeeId);
+                    // Index for O(1) grouping
+                    var byEmp = rows.ToLookup(r => (int)r.EmployeeId);
 
-            var result = new List<object>();
-            foreach (var emp in employees)
-            {
-                var empRows = byEmp[emp.Id].ToList();
-                if (empRows.Count == 0) continue;   // ← no late hours = skip
-
-                result.Add(new
-                {
-                    employeeId     = emp.Id,
-                    employeeName   = $"{emp.FirstName} {emp.LastName}".Trim(),
-                    epfNo          = emp.EPFNo,
-                    departmentName = emp.DepartmentName ?? "",
-                    rows = empRows.Select(r =>
+                    var result = new List<object>();
+                    foreach (var emp in employees)
                     {
-                        var ts = (TimeSpan?)r.LateHours ?? TimeSpan.Zero;
-                        return new
+                        var empRows = byEmp[emp.Id].ToList();
+                        if (empRows.Count == 0) continue;   // ← no late hours = skip
+
+                        result.Add(new
                         {
-                            date             = (DateTime)r.Date,
-                            lateHours        = ts.ToString(@"hh\:mm"),
-                            lateHoursDecimal = Math.Round(ts.TotalHours, 4)
-                        };
-                    }).ToList()
-                });
-            }
+                            employeeId = emp.Id,
+                            employeeName = $"{emp.FirstName} {emp.LastName}".Trim(),
+                            epfNo = emp.EPFNo,
+                            departmentName = emp.DepartmentName ?? "",
+                            rows = empRows.Select(r =>
+                            {
+                                var ts = (TimeSpan?)r.LateHours ?? TimeSpan.Zero;
+                                return new
+                                {
+                                    date = (DateTime)r.Date,
+                                    lateHours = ts.ToString(@"hh\:mm"),
+                                    lateHoursDecimal = Math.Round(ts.TotalHours, 4)
+                                };
+                            }).ToList()
+                        });
+                    }
 
-            return Ok(new
-            {
-                success = true,
-                data = new
-                {
-                    mode = "range",
-                    from = from.ToString("yyyy-MM-dd"),
-                    to   = to.ToString("yyyy-MM-dd"),
-                    employees = result
+                    return Ok(new
+                    {
+                        success = true,
+                        data = new
+                        {
+                            mode = "range",
+                            from = from.ToString("yyyy-MM-dd"),
+                            to = to.ToString("yyyy-MM-dd"),
+                            employees = result
+                        }
+                    });
                 }
-            });
-        }
 
-        // ═══════════════════════════════════════════════════════════
-        //  SUMMARY MODE  — batched, only employees with > 0 late hours
-        // ═══════════════════════════════════════════════════════════
-        var periods = BuildPeriodList(req);
+                // ═══════════════════════════════════════════════════════════
+                //  SUMMARY MODE  — batched, only employees with > 0 late hours
+                // ═══════════════════════════════════════════════════════════
+                var periods = BuildPeriodList(req);
 
-        var settings = await _companySettingsService.GetCompanySettingsAsync(req.CompanyId);
-        if (settings == null)
-            return BadRequest(new { success = false, message = "Company settings not found" });
+                var settings = await _companySettingsService.GetCompanySettingsAsync(req.CompanyId);
+                if (settings == null)
+                    return BadRequest(new { success = false, message = "Company settings not found" });
 
-        int startDayWages  = settings.SalaryStartDate_Wages;
-        int startDayOffice = settings.SalaryStartDate_Office;
+                int startDayWages = settings.SalaryStartDate_Wages;
+                int startDayOffice = settings.SalaryStartDate_Office;
 
-        // Split once — NOT per period
-        var officeEmps = employees
-            .Where(e => !string.IsNullOrEmpty(e.DepartmentName) &&
-                        e.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
-            .Select(e => e.Id).ToList();
-        var wagesEmps = employees
-            .Where(e => string.IsNullOrEmpty(e.DepartmentName) ||
-                        !e.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
-            .Select(e => e.Id).ToList();
+                // Split once — NOT per period
+                var officeEmps = employees
+                    .Where(e => !string.IsNullOrEmpty(e.DepartmentName) &&
+                                e.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
+                    .Select(e => e.Id).ToList();
+                var wagesEmps = employees
+                    .Where(e => string.IsNullOrEmpty(e.DepartmentName) ||
+                                !e.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
+                    .Select(e => e.Id).ToList();
 
-        // Per-period aggregate — one query per start-day group
-        const string bucketSql = @"
+                // Per-period aggregate — one query per start-day group
+                const string bucketSql = @"
             SELECT
                 EmployeeId,
                 ISNULL(SUM(
@@ -1950,118 +2011,118 @@ public async Task<IActionResult> RunLateReport([FromBody] LeaveReportRequest req
                 CAST(DATEDIFF(MINUTE, CAST('00:00:00' AS TIME), LateHours) AS DECIMAL(18,4)) / 60.0
             ), 0) > 0";
 
-        var periodBlocks = new List<object>();
+                var periodBlocks = new List<object>();
 
-        foreach (var (year, month, monthName) in periods)
-        {
-            var state = await GetPayrollPeriodStateAsync(conn, req.CompanyId, year, monthName);
-            if (!state.exists) continue;
-
-            var totals = new Dictionary<int, decimal>();
-
-            async Task FetchForGroupAsync(List<int> groupIds, int startDay)
-            {
-                if (!groupIds.Any()) return;
-
-                var (fromDate, toDate) = GetSalaryPeriodRange(year, month, startDay);
-
-                var rs = await conn.QueryAsync<dynamic>(bucketSql, new
+                foreach (var (year, month, monthName) in periods)
                 {
-                    Ids  = groupIds,
-                    From = fromDate,
-                    To   = toDate
+                    var state = await GetPayrollPeriodStateAsync(conn, req.CompanyId, year, monthName);
+                    if (!state.exists) continue;
+
+                    var totals = new Dictionary<int, decimal>();
+
+                    async Task FetchForGroupAsync(List<int> groupIds, int startDay)
+                    {
+                        if (!groupIds.Any()) return;
+
+                        var (fromDate, toDate) = GetSalaryPeriodRange(year, month, startDay);
+
+                        var rs = await conn.QueryAsync<dynamic>(bucketSql, new
+                        {
+                            Ids = groupIds,
+                            From = fromDate,
+                            To = toDate
+                        });
+
+                        foreach (var r in rs)
+                        {
+                            totals[(int)r.EmployeeId] = (decimal)r.TotalHours;
+                        }
+                    }
+
+                    await FetchForGroupAsync(officeEmps, startDayOffice);
+                    await FetchForGroupAsync(wagesEmps, startDayWages);
+
+                    // Only push employees whose total > 0 AND that came from the aggregate
+                    var empRows = employees
+                        .Where(emp => totals.TryGetValue(emp.Id, out var v) && v > 0)
+                        .Select(emp => (object)new
+                        {
+                            employeeId = emp.Id,
+                            employeeName = $"{emp.FirstName} {emp.LastName}".Trim(),
+                            epfNo = emp.EPFNo,
+                            departmentName = emp.DepartmentName ?? "",
+                            totalHours = Math.Round(totals[emp.Id], 2)
+                        })
+                        .ToList();
+
+                    if (!empRows.Any()) continue;
+
+                    periodBlocks.Add(new
+                    {
+                        year,
+                        monthName,
+                        locked = state.locked,
+                        processing = state.processing,
+                        employees = empRows
+                    });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    data = new { mode = "summary", periods = periodBlocks }
                 });
-
-                foreach (var r in rs)
-                {
-                    totals[(int)r.EmployeeId] = (decimal)r.TotalHours;
-                }
             }
-
-            await FetchForGroupAsync(officeEmps, startDayOffice);
-            await FetchForGroupAsync(wagesEmps,  startDayWages);
-
-            // Only push employees whose total > 0 AND that came from the aggregate
-            var empRows = employees
-                .Where(emp => totals.TryGetValue(emp.Id, out var v) && v > 0)
-                .Select(emp => (object)new
-                {
-                    employeeId     = emp.Id,
-                    employeeName   = $"{emp.FirstName} {emp.LastName}".Trim(),
-                    epfNo          = emp.EPFNo,
-                    departmentName = emp.DepartmentName ?? "",
-                    totalHours     = Math.Round(totals[emp.Id], 2)
-                })
-                .ToList();
-
-            if (!empRows.Any()) continue;
-
-            periodBlocks.Add(new
+            catch (Exception ex)
             {
-                year,
-                monthName,
-                locked     = state.locked,
-                processing = state.processing,
-                employees  = empRows
-            });
+                _logger.LogError(ex, "RunLateReport failed");
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
         }
-
-        return Ok(new
+        // ============================================================
+        // POST /api/attendance/report/combined/run
+        //   Runs Working Days + No Pay + Late Hours in ONE query.
+        //   Same shape as other reports, but each employee row carries
+        //   ALL THREE metrics so the frontend renders one unified card.
+        // ============================================================
+        [HttpPost("report/combined/run")]
+        public async Task<IActionResult> RunCombinedReport([FromBody] LeaveReportRequest req)
         {
-            success = true,
-            data = new { mode = "summary", periods = periodBlocks }
-        });
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "RunLateReport failed");
-        return StatusCode(500, new { success = false, message = ex.Message });
-    }
-}
-// ============================================================
-// POST /api/attendance/report/combined/run
-//   Runs Working Days + No Pay + Late Hours in ONE query.
-//   Same shape as other reports, but each employee row carries
-//   ALL THREE metrics so the frontend renders one unified card.
-// ============================================================
-[HttpPost("report/combined/run")]
-public async Task<IActionResult> RunCombinedReport([FromBody] LeaveReportRequest req)
-{
-    try
-    {
-        if (req == null || req.CompanyId <= 0)
-            return BadRequest(new { success = false, message = "Invalid request" });
-
-        var employees = await ResolveReportEmployeesAsync(req);
-        if (!employees.Any())
-            return Ok(new
+            try
             {
-                success = true,
-                data = new
+                if (req == null || req.CompanyId <= 0)
+                    return BadRequest(new { success = false, message = "Invalid request" });
+
+                var employees = await ResolveReportEmployeesAsync(req);
+                if (!employees.Any())
+                    return Ok(new
+                    {
+                        success = true,
+                        data = new
+                        {
+                            mode = req.PeriodMode,
+                            employees = new List<object>(),
+                            periods = new List<object>()
+                        }
+                    });
+
+                var ids = employees.Select(e => e.Id).ToList();
+                using var conn = new SqlConnection(_connectionString);
+
+                // ═══════════════════════════════════════════════════════════
+                //  RANGE MODE — one query per metric, merged by employee
+                // ═══════════════════════════════════════════════════════════
+                if (string.Equals(req.PeriodMode, "range", StringComparison.OrdinalIgnoreCase))
                 {
-                    mode = req.PeriodMode,
-                    employees = new List<object>(),
-                    periods = new List<object>()
-                }
-            });
+                    if (!DateTime.TryParse(req.FromDate, out var from) || !DateTime.TryParse(req.ToDate, out var to))
+                        return BadRequest(new { success = false, message = "Invalid From/To date" });
+                    if (from > to)
+                        return BadRequest(new { success = false, message = "From must be before To" });
 
-        var ids = employees.Select(e => e.Id).ToList();
-        using var conn = new SqlConnection(_connectionString);
+                    var toEnd = to.Date.AddDays(1).AddSeconds(-1);
 
-        // ═══════════════════════════════════════════════════════════
-        //  RANGE MODE — one query per metric, merged by employee
-        // ═══════════════════════════════════════════════════════════
-        if (string.Equals(req.PeriodMode, "range", StringComparison.OrdinalIgnoreCase))
-        {
-            if (!DateTime.TryParse(req.FromDate, out var from) || !DateTime.TryParse(req.ToDate, out var to))
-                return BadRequest(new { success = false, message = "Invalid From/To date" });
-            if (from > to)
-                return BadRequest(new { success = false, message = "From must be before To" });
-
-            var toEnd = to.Date.AddDays(1).AddSeconds(-1);
-
-            // 1) Working days + NoPay rows in one pass
-            const string tsSql = @"
+                    // 1) Working days + NoPay rows in one pass
+                    const string tsSql = @"
                 SELECT
                     EmployeeId,
                     FirstInDate AS [Date],
@@ -2073,98 +2134,98 @@ public async Task<IActionResult> RunCombinedReport([FromBody] LeaveReportRequest
                   AND FirstInDate <= @To
                 ORDER BY EmployeeId, FirstInDate";
 
-            var tsRows = (await conn.QueryAsync<dynamic>(tsSql,
-                new { Ids = ids, From = from.Date, To = toEnd })).ToList();
+                    var tsRows = (await conn.QueryAsync<dynamic>(tsSql,
+                        new { Ids = ids, From = from.Date, To = toEnd })).ToList();
 
-            var result = new List<object>();
+                    var result = new List<object>();
 
-            foreach (var emp in employees)
-            {
-                var empRows = tsRows.Where(r => (int)r.EmployeeId == emp.Id).ToList();
+                    foreach (var emp in employees)
+                    {
+                        var empRows = tsRows.Where(r => (int)r.EmployeeId == emp.Id).ToList();
 
-                // Working days: has FirstInTime, not NoPay
-                int workingDays = empRows.Count(r =>
-                    (string?)r.DayType == null ||
-                    (string?)r.DayType != "No Pay" && (string?)r.DayType != "No Pay - Half");
+                        // Working days: has FirstInTime, not NoPay
+                        int workingDays = empRows.Count(r =>
+                            (string?)r.DayType == null ||
+                            (string?)r.DayType != "No Pay" && (string?)r.DayType != "No Pay - Half");
 
-                // NoPay: count and half-day breakdown
-                decimal noPayFull = 0, noPayHalf = 0;
-                foreach (var r in empRows)
-                {
-                    var dt = (string?)r.DayType;
-                    if (dt == "No Pay")           noPayFull += 1m;
-                    else if (dt == "No Pay - Half") noPayHalf += 0.5m;
+                        // NoPay: count and half-day breakdown
+                        decimal noPayFull = 0, noPayHalf = 0;
+                        foreach (var r in empRows)
+                        {
+                            var dt = (string?)r.DayType;
+                            if (dt == "No Pay") noPayFull += 1m;
+                            else if (dt == "No Pay - Half") noPayHalf += 0.5m;
+                        }
+
+                        // Late hours: per-day breakdown
+                        // Late hours: per-day breakdown
+                        var lateRows = empRows
+                            .Where(r => r.LateHours != null && (TimeSpan)r.LateHours > TimeSpan.Zero)
+                            .Select(r => new
+                            {
+                                date = (DateTime)r.Date,
+                                lateHours = ((TimeSpan)r.LateHours).ToString(@"hh\:mm"),
+                                lateDecimal = Math.Round((decimal)((TimeSpan)r.LateHours).TotalHours, 4)  // ← cast to decimal
+                            })
+                            .ToList();
+
+                        decimal totalLate = lateRows.Sum(x => x.lateDecimal);   // now decimal + decimal = decimal ✓
+                                                                                // Skip employees with ZERO across all three metrics
+                        if (workingDays == 0 && noPayFull + noPayHalf == 0 && totalLate == 0)
+                            continue;
+
+                        result.Add(new
+                        {
+                            employeeId = emp.Id,
+                            employeeName = $"{emp.FirstName} {emp.LastName}".Trim(),
+                            epfNo = emp.EPFNo,
+                            departmentName = emp.DepartmentName ?? "",
+                            workingDays,
+                            noPayFull = Math.Round(noPayFull, 2),
+                            noPayHalf = Math.Round(noPayHalf, 2),
+                            noPayTotal = Math.Round(noPayFull + noPayHalf, 2),
+                            lateTotal = Math.Round(totalLate, 2),
+                            lateRows
+                        });
+                    }
+
+                    return Ok(new
+                    {
+                        success = true,
+                        data = new
+                        {
+                            mode = "range",
+                            from = from.ToString("yyyy-MM-dd"),
+                            to = to.ToString("yyyy-MM-dd"),
+                            employees = result
+                        }
+                    });
                 }
 
-                // Late hours: per-day breakdown
-                // Late hours: per-day breakdown
-var lateRows = empRows
-    .Where(r => r.LateHours != null && (TimeSpan)r.LateHours > TimeSpan.Zero)
-    .Select(r => new
-    {
-        date        = (DateTime)r.Date,
-        lateHours   = ((TimeSpan)r.LateHours).ToString(@"hh\:mm"),
-        lateDecimal = Math.Round((decimal)((TimeSpan)r.LateHours).TotalHours, 4)  // ← cast to decimal
-    })
-    .ToList();
+                // ═══════════════════════════════════════════════════════════
+                //  SUMMARY MODE — one aggregate query per start-day group,
+                //  all three metrics computed in SQL.
+                // ═══════════════════════════════════════════════════════════
+                var periods = BuildPeriodList(req);
 
-decimal totalLate = lateRows.Sum(x => x.lateDecimal);   // now decimal + decimal = decimal ✓
-                // Skip employees with ZERO across all three metrics
-                if (workingDays == 0 && noPayFull + noPayHalf == 0 && totalLate == 0)
-                    continue;
+                var settings = await _companySettingsService.GetCompanySettingsAsync(req.CompanyId);
+                if (settings == null)
+                    return BadRequest(new { success = false, message = "Company settings not found" });
 
-                result.Add(new
-                {
-                    employeeId     = emp.Id,
-                    employeeName   = $"{emp.FirstName} {emp.LastName}".Trim(),
-                    epfNo          = emp.EPFNo,
-                    departmentName = emp.DepartmentName ?? "",
-                    workingDays,
-                    noPayFull      = Math.Round(noPayFull, 2),
-                    noPayHalf      = Math.Round(noPayHalf, 2),
-                    noPayTotal     = Math.Round(noPayFull + noPayHalf, 2),
-                    lateTotal      = Math.Round(totalLate, 2),
-                    lateRows
-                });
-            }
+                int startDayWages = settings.SalaryStartDate_Wages;
+                int startDayOffice = settings.SalaryStartDate_Office;
 
-            return Ok(new
-            {
-                success = true,
-                data = new
-                {
-                    mode = "range",
-                    from = from.ToString("yyyy-MM-dd"),
-                    to   = to.ToString("yyyy-MM-dd"),
-                    employees = result
-                }
-            });
-        }
+                var officeEmps = employees
+                    .Where(e => !string.IsNullOrEmpty(e.DepartmentName) &&
+                                e.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
+                    .Select(e => e.Id).ToList();
+                var wagesEmps = employees
+                    .Where(e => string.IsNullOrEmpty(e.DepartmentName) ||
+                                !e.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
+                    .Select(e => e.Id).ToList();
 
-        // ═══════════════════════════════════════════════════════════
-        //  SUMMARY MODE — one aggregate query per start-day group,
-        //  all three metrics computed in SQL.
-        // ═══════════════════════════════════════════════════════════
-        var periods = BuildPeriodList(req);
-
-        var settings = await _companySettingsService.GetCompanySettingsAsync(req.CompanyId);
-        if (settings == null)
-            return BadRequest(new { success = false, message = "Company settings not found" });
-
-        int startDayWages  = settings.SalaryStartDate_Wages;
-        int startDayOffice = settings.SalaryStartDate_Office;
-
-        var officeEmps = employees
-            .Where(e => !string.IsNullOrEmpty(e.DepartmentName) &&
-                        e.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
-            .Select(e => e.Id).ToList();
-        var wagesEmps = employees
-            .Where(e => string.IsNullOrEmpty(e.DepartmentName) ||
-                        !e.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
-            .Select(e => e.Id).ToList();
-
-        // ★ ONE query returns all three metrics per employee
-        const string combinedSql = @"
+                // ★ ONE query returns all three metrics per employee
+                const string combinedSql = @"
             SELECT
                 EmployeeId,
                 SUM(CASE
@@ -2195,123 +2256,123 @@ decimal totalLate = lateRows.Sum(x => x.lateDecimal);   // now decimal + decimal
                     CAST(DATEDIFF(MINUTE, CAST('00:00:00' AS TIME), LateHours) AS DECIMAL(18,4)) / 60.0
                 ), 0) > 0";
 
-        var periodBlocks = new List<object>();
+                var periodBlocks = new List<object>();
 
-        foreach (var (year, month, monthName) in periods)
-        {
-            var state = await GetPayrollPeriodStateAsync(conn, req.CompanyId, year, monthName);
-            if (!state.exists) continue;
-
-            // empId → metrics
-            var metrics = new Dictionary<int, dynamic>();
-
-            async Task FetchForGroupAsync(List<int> groupIds, int startDay)
-            {
-                if (!groupIds.Any()) return;
-
-                var (fromDate, toDate) = GetSalaryPeriodRange(year, month, startDay);
-
-                var rs = await conn.QueryAsync<dynamic>(combinedSql, new
+                foreach (var (year, month, monthName) in periods)
                 {
-                    Ids  = groupIds,
-                    From = fromDate,
-                    To   = toDate
-                });
+                    var state = await GetPayrollPeriodStateAsync(conn, req.CompanyId, year, monthName);
+                    if (!state.exists) continue;
 
-                foreach (var r in rs)
-                {
-                    metrics[(int)r.EmployeeId] = r;
+                    // empId → metrics
+                    var metrics = new Dictionary<int, dynamic>();
+
+                    async Task FetchForGroupAsync(List<int> groupIds, int startDay)
+                    {
+                        if (!groupIds.Any()) return;
+
+                        var (fromDate, toDate) = GetSalaryPeriodRange(year, month, startDay);
+
+                        var rs = await conn.QueryAsync<dynamic>(combinedSql, new
+                        {
+                            Ids = groupIds,
+                            From = fromDate,
+                            To = toDate
+                        });
+
+                        foreach (var r in rs)
+                        {
+                            metrics[(int)r.EmployeeId] = r;
+                        }
+                    }
+
+                    await FetchForGroupAsync(officeEmps, startDayOffice);   // 1 query
+                    await FetchForGroupAsync(wagesEmps, startDayWages);    // 1 query
+
+                    var empRows = new List<object>();
+
+                    foreach (var emp in employees)
+                    {
+                        if (!metrics.TryGetValue(emp.Id, out var m)) continue;
+
+                        // Local helpers — dynamic + null coalesce is ambiguous at compile-time,
+                        // so normalize via IConvertible which dispatches on the actual boxed type.
+                        static decimal D(dynamic v) =>
+                            v == null ? 0m : ((IConvertible)v).ToDecimal(System.Globalization.CultureInfo.InvariantCulture);
+
+                        static int I(dynamic v) =>
+                            v == null ? 0 : ((IConvertible)v).ToInt32(System.Globalization.CultureInfo.InvariantCulture);
+
+                        int wd = I(m.WorkingDays);
+                        decimal npTotal = D(m.NoPayTotal);
+                        decimal npFull = D(m.NoPayFull);
+                        decimal npHalf = D(m.NoPayHalf);
+                        decimal lateHrs = D(m.LateTotal);
+
+                        if (wd == 0 && npTotal == 0 && lateHrs == 0) continue;
+
+                        empRows.Add(new
+                        {
+                            employeeId = emp.Id,
+                            employeeName = $"{emp.FirstName} {emp.LastName}".Trim(),
+                            epfNo = emp.EPFNo,
+                            departmentName = emp.DepartmentName ?? "",
+                            workingDays = wd,
+                            noPayFull = Math.Round(npFull, 2),
+                            noPayHalf = Math.Round(npHalf, 2),
+                            noPayTotal = Math.Round(npTotal, 2),
+                            lateTotal = Math.Round(lateHrs, 2)
+                        });
+                    }
+                    if (!empRows.Any()) continue;
+
+                    periodBlocks.Add(new
+                    {
+                        year,
+                        monthName,
+                        locked = state.locked,
+                        processing = state.processing,
+                        employees = empRows
+                    });
                 }
+
+                return Ok(new
+                {
+                    success = true,
+                    data = new { mode = "summary", periods = periodBlocks }
+                });
             }
-
-            await FetchForGroupAsync(officeEmps, startDayOffice);   // 1 query
-            await FetchForGroupAsync(wagesEmps,  startDayWages);    // 1 query
-
-            var empRows = new List<object>();
-
-            foreach (var emp in employees)
-{
-    if (!metrics.TryGetValue(emp.Id, out var m)) continue;
-
-    // Local helpers — dynamic + null coalesce is ambiguous at compile-time,
-    // so normalize via IConvertible which dispatches on the actual boxed type.
-    static decimal D(dynamic v) =>
-        v == null ? 0m : ((IConvertible)v).ToDecimal(System.Globalization.CultureInfo.InvariantCulture);
-
-    static int I(dynamic v) =>
-        v == null ? 0 : ((IConvertible)v).ToInt32(System.Globalization.CultureInfo.InvariantCulture);
-
-    int     wd       = I(m.WorkingDays);
-    decimal npTotal  = D(m.NoPayTotal);
-    decimal npFull   = D(m.NoPayFull);
-    decimal npHalf   = D(m.NoPayHalf);
-    decimal lateHrs  = D(m.LateTotal);
-
-    if (wd == 0 && npTotal == 0 && lateHrs == 0) continue;
-
-    empRows.Add(new
-    {
-        employeeId     = emp.Id,
-        employeeName   = $"{emp.FirstName} {emp.LastName}".Trim(),
-        epfNo          = emp.EPFNo,
-        departmentName = emp.DepartmentName ?? "",
-        workingDays    = wd,
-        noPayFull      = Math.Round(npFull, 2),
-        noPayHalf      = Math.Round(npHalf, 2),
-        noPayTotal     = Math.Round(npTotal, 2),
-        lateTotal      = Math.Round(lateHrs, 2)
-    });
-}
-            if (!empRows.Any()) continue;
-
-            periodBlocks.Add(new
+            catch (Exception ex)
             {
-                year,
-                monthName,
-                locked     = state.locked,
-                processing = state.processing,
-                employees  = empRows
-            });
+                _logger.LogError(ex, "RunCombinedReport failed");
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
         }
-
-        return Ok(new
+        [HttpPost("report/ot/run")]
+        public async Task<IActionResult> RunOtReport([FromBody] LeaveReportRequest req)
         {
-            success = true,
-            data = new { mode = "summary", periods = periodBlocks }
-        });
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "RunCombinedReport failed");
-        return StatusCode(500, new { success = false, message = ex.Message });
-    }
-}
-[HttpPost("report/ot/run")]
-public async Task<IActionResult> RunOtReport([FromBody] LeaveReportRequest req)
-{
-    try
-    {
-        if (req == null || req.CompanyId <= 0)
-            return BadRequest(new { success = false, message = "Invalid request" });
+            try
+            {
+                if (req == null || req.CompanyId <= 0)
+                    return BadRequest(new { success = false, message = "Invalid request" });
 
-        var employees = await ResolveReportEmployeesAsync(req);
-        if (!employees.Any())
-            return Ok(new { success = true, data = new { mode = req.PeriodMode, employees = new List<object>(), periods = new List<object>() } });
+                var employees = await ResolveReportEmployeesAsync(req);
+                if (!employees.Any())
+                    return Ok(new { success = true, data = new { mode = req.PeriodMode, employees = new List<object>(), periods = new List<object>() } });
 
-        var ids = employees.Select(e => e.Id).ToList();
-        using var conn = new SqlConnection(_connectionString);
+                var ids = employees.Select(e => e.Id).ToList();
+                using var conn = new SqlConnection(_connectionString);
 
-        decimal H(TimeSpan? t) => (decimal)(t?.TotalHours ?? 0);
+                decimal H(TimeSpan? t) => (decimal)(t?.TotalHours ?? 0);
 
-        // ── RANGE ──
-        if (string.Equals(req.PeriodMode, "range", StringComparison.OrdinalIgnoreCase))
-        {
-            if (!DateTime.TryParse(req.FromDate, out var from) || !DateTime.TryParse(req.ToDate, out var to))
-                return BadRequest(new { success = false, message = "Invalid From/To date" });
+                // ── RANGE ──
+                if (string.Equals(req.PeriodMode, "range", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!DateTime.TryParse(req.FromDate, out var from) || !DateTime.TryParse(req.ToDate, out var to))
+                        return BadRequest(new { success = false, message = "Invalid From/To date" });
 
-            var toEnd = to.Date.AddDays(1).AddSeconds(-1);
+                    var toEnd = to.Date.AddDays(1).AddSeconds(-1);
 
-            const string sql = @"
+                    const string sql = @"
                 SELECT EmployeeId, FirstInDate AS [Date],
                        OtHoursNormal, OtHoursWeeklyDayOff, OtHoursWeeklyHalfDayOff,
                        OtHoursPoya, OtHoursBankHoliday
@@ -2321,72 +2382,72 @@ public async Task<IActionResult> RunOtReport([FromBody] LeaveReportRequest req)
                   AND FirstInDate <= @To
                 ORDER BY EmployeeId, FirstInDate";
 
-            var rows = await conn.QueryAsync<dynamic>(sql,
-                new { Ids = ids, From = from.Date, To = toEnd });
+                    var rows = await conn.QueryAsync<dynamic>(sql,
+                        new { Ids = ids, From = from.Date, To = toEnd });
 
-            var result = new List<object>();
-            foreach (var emp in employees)
-            {
-                var empRows = rows.Where(r => (int)r.EmployeeId == emp.Id)
-                    .Select(r => new
+                    var result = new List<object>();
+                    foreach (var emp in employees)
                     {
-                        date             = (DateTime)r.Date,
-                        normal           = Math.Round(H((TimeSpan?)r.OtHoursNormal), 4),
-                        weeklyDayOff     = Math.Round(H((TimeSpan?)r.OtHoursWeeklyDayOff), 4),
-                        weeklyHalfDayOff = Math.Round(H((TimeSpan?)r.OtHoursWeeklyHalfDayOff), 4),
-                        poya             = Math.Round(H((TimeSpan?)r.OtHoursPoya), 4),
-                        mercantile       = 0m,
-                        bankHoliday      = Math.Round(H((TimeSpan?)r.OtHoursBankHoliday), 4)
-                    })
-                    .Where(x => x.normal + x.weeklyDayOff + x.weeklyHalfDayOff + x.poya + x.bankHoliday > 0)
-                    .ToList();
+                        var empRows = rows.Where(r => (int)r.EmployeeId == emp.Id)
+                            .Select(r => new
+                            {
+                                date = (DateTime)r.Date,
+                                normal = Math.Round(H((TimeSpan?)r.OtHoursNormal), 4),
+                                weeklyDayOff = Math.Round(H((TimeSpan?)r.OtHoursWeeklyDayOff), 4),
+                                weeklyHalfDayOff = Math.Round(H((TimeSpan?)r.OtHoursWeeklyHalfDayOff), 4),
+                                poya = Math.Round(H((TimeSpan?)r.OtHoursPoya), 4),
+                                mercantile = 0m,
+                                bankHoliday = Math.Round(H((TimeSpan?)r.OtHoursBankHoliday), 4)
+                            })
+                            .Where(x => x.normal + x.weeklyDayOff + x.weeklyHalfDayOff + x.poya + x.bankHoliday > 0)
+                            .ToList();
 
-                if (!empRows.Any()) continue;
+                        if (!empRows.Any()) continue;
 
-                result.Add(new
-                {
-                    employeeId     = emp.Id,
-                    employeeName   = $"{emp.FirstName} {emp.LastName}".Trim(),
-                    epfNo          = emp.EPFNo,
-                    departmentName = emp.DepartmentName ?? "",
-                    rows           = empRows
-                });
-            }
+                        result.Add(new
+                        {
+                            employeeId = emp.Id,
+                            employeeName = $"{emp.FirstName} {emp.LastName}".Trim(),
+                            epfNo = emp.EPFNo,
+                            departmentName = emp.DepartmentName ?? "",
+                            rows = empRows
+                        });
+                    }
 
-            return Ok(new
-            {
-                success = true,
-                data = new
-                {
-                    mode = "range",
-                    from = from.ToString("yyyy-MM-dd"),
-                    to   = to.ToString("yyyy-MM-dd"),
-                    employees = result
+                    return Ok(new
+                    {
+                        success = true,
+                        data = new
+                        {
+                            mode = "range",
+                            from = from.ToString("yyyy-MM-dd"),
+                            to = to.ToString("yyyy-MM-dd"),
+                            employees = result
+                        }
+                    });
                 }
-            });
-        }
 
-        // ── SUMMARY ──
-var periods = BuildPeriodList(req);
-var settings = await _companySettingsService.GetCompanySettingsAsync(req.CompanyId);
-if (settings == null)
-    return BadRequest(new { success = false, message = "Company settings not found" });
+                // ── SUMMARY ──
+                var periods = BuildPeriodList(req);
+                var settings = await _companySettingsService.GetCompanySettingsAsync(req.CompanyId);
+                if (settings == null)
+                    return BadRequest(new { success = false, message = "Company settings not found" });
 
-int startDayWages  = settings.SalaryStartDate_Wages;
-int startDayOffice = settings.SalaryStartDate_Office;
+                int startDayWages = settings.SalaryStartDate_Wages;
+                int startDayOffice = settings.SalaryStartDate_Office;
 
-// Split employees ONCE — NOT per period
-var officeEmps = employees
-    .Where(e => !string.IsNullOrEmpty(e.DepartmentName) &&
-                e.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
-    .Select(e => e.Id).ToList();
-var wagesEmps = employees
-    .Where(e => string.IsNullOrEmpty(e.DepartmentName) ||
-                !e.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
-    .Select(e => e.Id).ToList();
+                // Split employees ONCE — NOT per period
+                var officeEmps = employees
+                    .Where(e => !string.IsNullOrEmpty(e.DepartmentName) &&
+                                e.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
+                    .Select(e => e.Id).ToList();
+                var wagesEmps = employees
+                    .Where(e => string.IsNullOrEmpty(e.DepartmentName) ||
+                                !e.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
+                    .Select(e => e.Id).ToList();
 
-// ONE aggregate per start-day group, all six OT buckets in one SELECT
-const string bucketSql = @"
+                // ONE aggregate per start-day group, all six OT buckets in one SELECT
+                const string bucketSql = @"
     SELECT
         EmployeeId,
         ISNULL(SUM(CAST(DATEDIFF(MINUTE, CAST('00:00:00' AS TIME), OtHoursNormal)          AS DECIMAL(18,4))), 0) / 60.0 AS Normal,
@@ -2405,129 +2466,129 @@ const string bucketSql = @"
          + ISNULL(SUM(CAST(DATEDIFF(MINUTE, CAST('00:00:00' AS TIME), OtHoursPoya)            AS DECIMAL(18,4))), 0)
          + ISNULL(SUM(CAST(DATEDIFF(MINUTE, CAST('00:00:00' AS TIME), OtHoursBankHoliday)     AS DECIMAL(18,4))), 0) > 0";
 
-var periodBlocks = new List<object>();
+                var periodBlocks = new List<object>();
 
-foreach (var (year, month, monthName) in periods)
-{
-    var state = await GetPayrollPeriodStateAsync(conn, req.CompanyId, year, monthName);
-    if (!state.exists) continue;
+                foreach (var (year, month, monthName) in periods)
+                {
+                    var state = await GetPayrollPeriodStateAsync(conn, req.CompanyId, year, monthName);
+                    if (!state.exists) continue;
 
-    // empId → dynamic row (all six buckets)
-    var totals = new Dictionary<int, dynamic>();
+                    // empId → dynamic row (all six buckets)
+                    var totals = new Dictionary<int, dynamic>();
 
-    async Task FetchForGroupAsync(List<int> groupIds, int startDay)
-    {
-        if (!groupIds.Any()) return;
+                    async Task FetchForGroupAsync(List<int> groupIds, int startDay)
+                    {
+                        if (!groupIds.Any()) return;
 
-        var (fromDate, toDate) = GetSalaryPeriodRange(year, month, startDay);
+                        var (fromDate, toDate) = GetSalaryPeriodRange(year, month, startDay);
 
-        var rs = await conn.QueryAsync<dynamic>(bucketSql, new
-        {
-            Ids  = groupIds,
-            From = fromDate,
-            To   = toDate
-        });
+                        var rs = await conn.QueryAsync<dynamic>(bucketSql, new
+                        {
+                            Ids = groupIds,
+                            From = fromDate,
+                            To = toDate
+                        });
 
-        foreach (var r in rs)
-        {
-            totals[(int)r.EmployeeId] = r;
+                        foreach (var r in rs)
+                        {
+                            totals[(int)r.EmployeeId] = r;
+                        }
+                    }
+
+                    await FetchForGroupAsync(officeEmps, startDayOffice);   // 1 query
+                    await FetchForGroupAsync(wagesEmps, startDayWages);    // 1 query
+
+                    var empRows = new List<object>();
+
+                    foreach (var emp in employees)
+                    {
+                        if (!totals.TryGetValue(emp.Id, out var r)) continue;
+
+                        decimal normal = Math.Round((decimal)(r.Normal ?? 0m), 2);
+                        decimal weeklyDayOff = Math.Round((decimal)(r.WeeklyDayOff ?? 0m), 2);
+                        decimal weeklyHalfDayOff = Math.Round((decimal)(r.WeeklyHalfDayOff ?? 0m), 2);
+                        decimal poya = Math.Round((decimal)(r.Poya ?? 0m), 2);
+                        decimal bankHoliday = Math.Round((decimal)(r.BankHoliday ?? 0m), 2);
+
+                        decimal sum = normal + weeklyDayOff + weeklyHalfDayOff + poya + bankHoliday;
+                        if (sum <= 0) continue;   // HAVING already filters, but defensive
+
+                        empRows.Add(new
+                        {
+                            employeeId = emp.Id,
+                            employeeName = $"{emp.FirstName} {emp.LastName}".Trim(),
+                            epfNo = emp.EPFNo,
+                            departmentName = emp.DepartmentName ?? "",
+                            normal,
+                            weeklyDayOff,
+                            weeklyHalfDayOff,
+                            poya,
+                            mercantile = 0m,
+                            bankHoliday
+                        });
+                    }
+
+                    if (!empRows.Any()) continue;
+
+                    periodBlocks.Add(new
+                    {
+                        year,
+                        monthName,
+                        locked = state.locked,
+                        processing = state.processing,
+                        employees = empRows
+                    });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    data = new { mode = "summary", periods = periodBlocks }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "RunOtReport failed");
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
         }
-    }
-
-    await FetchForGroupAsync(officeEmps, startDayOffice);   // 1 query
-    await FetchForGroupAsync(wagesEmps,  startDayWages);    // 1 query
-
-    var empRows = new List<object>();
-
-    foreach (var emp in employees)
-    {
-        if (!totals.TryGetValue(emp.Id, out var r)) continue;
-
-        decimal normal           = Math.Round((decimal)(r.Normal           ?? 0m), 2);
-        decimal weeklyDayOff     = Math.Round((decimal)(r.WeeklyDayOff     ?? 0m), 2);
-        decimal weeklyHalfDayOff = Math.Round((decimal)(r.WeeklyHalfDayOff ?? 0m), 2);
-        decimal poya             = Math.Round((decimal)(r.Poya             ?? 0m), 2);
-        decimal bankHoliday      = Math.Round((decimal)(r.BankHoliday      ?? 0m), 2);
-
-        decimal sum = normal + weeklyDayOff + weeklyHalfDayOff + poya + bankHoliday;
-        if (sum <= 0) continue;   // HAVING already filters, but defensive
-
-        empRows.Add(new
+        [HttpPost("report/workingdays/run")]
+        public async Task<IActionResult> RunWorkingDaysReport([FromBody] LeaveReportRequest req)
         {
-            employeeId       = emp.Id,
-            employeeName     = $"{emp.FirstName} {emp.LastName}".Trim(),
-            epfNo            = emp.EPFNo,
-            departmentName   = emp.DepartmentName ?? "",
-            normal,
-            weeklyDayOff,
-            weeklyHalfDayOff,
-            poya,
-            mercantile       = 0m,
-            bankHoliday
-        });
-    }
+            try
+            {
+                if (req == null || req.CompanyId <= 0)
+                    return BadRequest(new { success = false, message = "Invalid request" });
 
-    if (!empRows.Any()) continue;
+                var employees = await ResolveReportEmployeesAsync(req);
+                if (!employees.Any())
+                    return Ok(new { success = true, data = new { mode = "summary", periods = new List<object>() } });
 
-    periodBlocks.Add(new
-    {
-        year,
-        monthName,
-        locked     = state.locked,
-        processing = state.processing,
-        employees  = empRows
-    });
-}
+                var ids = employees.Select(e => e.Id).ToList();
 
-return Ok(new
-{
-    success = true,
-    data = new { mode = "summary", periods = periodBlocks }
-});
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "RunOtReport failed");
-        return StatusCode(500, new { success = false, message = ex.Message });
-    }
-}
-[HttpPost("report/workingdays/run")]
-public async Task<IActionResult> RunWorkingDaysReport([FromBody] LeaveReportRequest req)
-{
-    try
-    {
-        if (req == null || req.CompanyId <= 0)
-            return BadRequest(new { success = false, message = "Invalid request" });
+                var periods = BuildPeriodList(req);
 
-        var employees = await ResolveReportEmployeesAsync(req);
-        if (!employees.Any())
-            return Ok(new { success = true, data = new { mode = "summary", periods = new List<object>() } });
+                var settings = await _companySettingsService.GetCompanySettingsAsync(req.CompanyId);
+                if (settings == null)
+                    return BadRequest(new { success = false, message = "Company settings not found" });
 
-        var ids = employees.Select(e => e.Id).ToList();
+                int startDayWages = settings.SalaryStartDate_Wages;
+                int startDayOffice = settings.SalaryStartDate_Office;
 
-        var periods = BuildPeriodList(req);
+                // Split employees ONCE by start-day rule (Office vs Wages)
+                var officeEmps = employees
+                    .Where(e => !string.IsNullOrEmpty(e.DepartmentName) &&
+                                e.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
+                    .Select(e => e.Id).ToList();
+                var wagesEmps = employees
+                    .Where(e => string.IsNullOrEmpty(e.DepartmentName) ||
+                                !e.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
+                    .Select(e => e.Id).ToList();
 
-        var settings = await _companySettingsService.GetCompanySettingsAsync(req.CompanyId);
-        if (settings == null)
-            return BadRequest(new { success = false, message = "Company settings not found" });
+                using var conn = new SqlConnection(_connectionString);
 
-        int startDayWages  = settings.SalaryStartDate_Wages;
-        int startDayOffice = settings.SalaryStartDate_Office;
-
-        // Split employees ONCE by start-day rule (Office vs Wages)
-        var officeEmps = employees
-            .Where(e => !string.IsNullOrEmpty(e.DepartmentName) &&
-                        e.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
-            .Select(e => e.Id).ToList();
-        var wagesEmps  = employees
-            .Where(e => string.IsNullOrEmpty(e.DepartmentName) ||
-                        !e.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
-            .Select(e => e.Id).ToList();
-
-        using var conn = new SqlConnection(_connectionString);
-
-        // Batched aggregate — one query per start-day group per period
-        const string bucketSql = @"
+                // Batched aggregate — one query per start-day group per period
+                const string bucketSql = @"
             SELECT
                 EmployeeId,
                 COUNT(*) AS WorkingDays
@@ -2539,101 +2600,101 @@ public async Task<IActionResult> RunWorkingDaysReport([FromBody] LeaveReportRequ
               AND (DayType IS NULL OR DayType NOT IN ('No Pay','No Pay - Half'))
             GROUP BY EmployeeId";
 
-        var periodBlocks = new List<object>();
+                var periodBlocks = new List<object>();
 
-        foreach (var (year, month, monthName) in periods)
-        {
-            var state = await GetPayrollPeriodStateAsync(conn, req.CompanyId, year, monthName);
-            if (!state.exists) continue;
-
-            // empId → working days
-            var counts = new Dictionary<int, int>();
-
-            async Task FetchForGroupAsync(List<int> groupIds, int startDay)
-            {
-                if (!groupIds.Any()) return;
-
-                var (fromDate, toDate) = GetSalaryPeriodRange(year, month, startDay);
-
-                var rs = await conn.QueryAsync<dynamic>(bucketSql, new
+                foreach (var (year, month, monthName) in periods)
                 {
-                    Ids  = groupIds,
-                    From = fromDate,
-                    To   = toDate
-                });
+                    var state = await GetPayrollPeriodStateAsync(conn, req.CompanyId, year, monthName);
+                    if (!state.exists) continue;
 
-                foreach (var r in rs)
-                {
-                    counts[(int)r.EmployeeId] = (int)r.WorkingDays;
+                    // empId → working days
+                    var counts = new Dictionary<int, int>();
+
+                    async Task FetchForGroupAsync(List<int> groupIds, int startDay)
+                    {
+                        if (!groupIds.Any()) return;
+
+                        var (fromDate, toDate) = GetSalaryPeriodRange(year, month, startDay);
+
+                        var rs = await conn.QueryAsync<dynamic>(bucketSql, new
+                        {
+                            Ids = groupIds,
+                            From = fromDate,
+                            To = toDate
+                        });
+
+                        foreach (var r in rs)
+                        {
+                            counts[(int)r.EmployeeId] = (int)r.WorkingDays;
+                        }
+                    }
+
+                    await FetchForGroupAsync(officeEmps, startDayOffice);   // 1 query
+                    await FetchForGroupAsync(wagesEmps, startDayWages);    // 1 query
+
+                    var empRows = new List<object>();
+
+                    foreach (var emp in employees)
+                    {
+                        if (!counts.TryGetValue(emp.Id, out int wd) || wd <= 0) continue;
+
+                        empRows.Add(new
+                        {
+                            employeeId = emp.Id,
+                            employeeName = $"{emp.FirstName} {emp.LastName}".Trim(),
+                            epfNo = emp.EPFNo,
+                            departmentName = emp.DepartmentName ?? "",
+                            totalWorkingDays = wd
+                        });
+                    }
+
+                    if (!empRows.Any()) continue;
+
+                    periodBlocks.Add(new
+                    {
+                        year,
+                        monthName,
+                        locked = state.locked,
+                        processing = state.processing,
+                        employees = empRows
+                    });
                 }
-            }
 
-            await FetchForGroupAsync(officeEmps, startDayOffice);   // 1 query
-            await FetchForGroupAsync(wagesEmps,  startDayWages);    // 1 query
-
-            var empRows = new List<object>();
-
-            foreach (var emp in employees)
-            {
-                if (!counts.TryGetValue(emp.Id, out int wd) || wd <= 0) continue;
-
-                empRows.Add(new
+                return Ok(new
                 {
-                    employeeId       = emp.Id,
-                    employeeName     = $"{emp.FirstName} {emp.LastName}".Trim(),
-                    epfNo            = emp.EPFNo,
-                    departmentName   = emp.DepartmentName ?? "",
-                    totalWorkingDays = wd
+                    success = true,
+                    data = new { mode = "summary", periods = periodBlocks }
                 });
             }
-
-            if (!empRows.Any()) continue;
-
-            periodBlocks.Add(new
+            catch (Exception ex)
             {
-                year,
-                monthName,
-                locked     = state.locked,
-                processing = state.processing,
-                employees  = empRows
-            });
+                _logger.LogError(ex, "RunWorkingDaysReport failed");
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
         }
-
-        return Ok(new
+        [HttpPost("report/rowattendance/run")]
+        public async Task<IActionResult> RunRowAttendanceReport([FromBody] LeaveReportRequest req)
         {
-            success = true,
-            data = new { mode = "summary", periods = periodBlocks }
-        });
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "RunWorkingDaysReport failed");
-        return StatusCode(500, new { success = false, message = ex.Message });
-    }
-}
-[HttpPost("report/rowattendance/run")]
-public async Task<IActionResult> RunRowAttendanceReport([FromBody] LeaveReportRequest req)
-{
-    try
-    {
-        if (req == null || req.CompanyId <= 0)
-            return BadRequest(new { success = false, message = "Invalid request" });
+            try
+            {
+                if (req == null || req.CompanyId <= 0)
+                    return BadRequest(new { success = false, message = "Invalid request" });
 
-        if (!DateTime.TryParse(req.FromDate, out var from) || !DateTime.TryParse(req.ToDate, out var to))
-            return BadRequest(new { success = false, message = "Invalid From/To date" });
-        if (from > to)
-            return BadRequest(new { success = false, message = "From must be before To" });
+                if (!DateTime.TryParse(req.FromDate, out var from) || !DateTime.TryParse(req.ToDate, out var to))
+                    return BadRequest(new { success = false, message = "Invalid From/To date" });
+                if (from > to)
+                    return BadRequest(new { success = false, message = "From must be before To" });
 
-        var employees = await ResolveReportEmployeesAsync(req);
-        if (!employees.Any())
-            return Ok(new { success = true, data = new { mode = "range", employees = new List<object>() } });
+                var employees = await ResolveReportEmployeesAsync(req);
+                if (!employees.Any())
+                    return Ok(new { success = true, data = new { mode = "range", employees = new List<object>() } });
 
-        var ids = employees.Select(e => e.Id).ToList();
-        var toEnd = to.Date.AddDays(1).AddSeconds(-1);
+                var ids = employees.Select(e => e.Id).ToList();
+                var toEnd = to.Date.AddDays(1).AddSeconds(-1);
 
-        using var conn = new SqlConnection(_connectionString);
+                using var conn = new SqlConnection(_connectionString);
 
-        const string sql = @"
+                const string sql = @"
             SELECT a.id AS Id, a.employee_id AS EmployeeId, a.datetime AS DateTime,
                    a.input_type AS InputType, a.input_datetime AS InputDateTime
             FROM Attendance a
@@ -2642,143 +2703,160 @@ public async Task<IActionResult> RunRowAttendanceReport([FromBody] LeaveReportRe
               AND a.datetime <= @To
             ORDER BY a.employee_id, a.datetime";
 
-        var rows = await conn.QueryAsync<dynamic>(sql,
-            new { Ids = ids, From = from.Date, To = toEnd });
+                var rows = await conn.QueryAsync<dynamic>(sql,
+                    new { Ids = ids, From = from.Date, To = toEnd });
 
-        var result = new List<object>();
-        foreach (var emp in employees)
-        {
-            var empRows = rows.Where(r => (int)r.EmployeeId == emp.Id).ToList();
-            if (!empRows.Any()) continue;
-
-            result.Add(new
-            {
-                employeeId     = emp.Id,
-                employeeName   = $"{emp.FirstName} {emp.LastName}".Trim(),
-                epfNo          = emp.EPFNo,
-                departmentName = emp.DepartmentName ?? "",
-                rows = empRows.Select(r => new
+                var result = new List<object>();
+                foreach (var emp in employees)
                 {
-                    id            = (int)r.Id,
-                    dateTime      = (DateTime)r.DateTime,
-                    inputType     = (string?)r.InputType ?? "Manual",
-                    inputDateTime = (DateTime?)r.InputDateTime
-                }).ToList()
-            });
-        }
+                    var empRows = rows.Where(r => (int)r.EmployeeId == emp.Id).ToList();
+                    if (!empRows.Any()) continue;
 
-        return Ok(new
-        {
-            success = true,
-            data = new
-            {
-                mode = "range",
-                from = from.ToString("yyyy-MM-dd"),
-                to   = to.ToString("yyyy-MM-dd"),
-                employees = result
+                    result.Add(new
+                    {
+                        employeeId = emp.Id,
+                        employeeName = $"{emp.FirstName} {emp.LastName}".Trim(),
+                        epfNo = emp.EPFNo,
+                        departmentName = emp.DepartmentName ?? "",
+                        rows = empRows.Select(r => new
+                        {
+                            id = (int)r.Id,
+                            dateTime = (DateTime)r.DateTime,
+                            inputType = (string?)r.InputType ?? "Manual",
+                            inputDateTime = (DateTime?)r.InputDateTime
+                        }).ToList()
+                    });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    data = new
+                    {
+                        mode = "range",
+                        from = from.ToString("yyyy-MM-dd"),
+                        to = to.ToString("yyyy-MM-dd"),
+                        employees = result
+                    }
+                });
             }
-        });
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "RunRowAttendanceReport failed");
-        return StatusCode(500, new { success = false, message = ex.Message });
-    }
-}
-// ============================================================
-// Shared: resolve employees for the current scope.
-// ============================================================
-private async Task<List<EmployeeRow>> ResolveReportEmployeesAsync(LeaveReportRequest req)
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "RunRowAttendanceReport failed");
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+        // ============================================================
+        // Shared: resolve employees for the current scope.
+        // ============================================================
+        private async Task<List<EmployeeRow>> ResolveReportEmployeesAsync(LeaveReportRequest req)
+        {
+            var empQuery = _context.Employees
+                .AsNoTracking()
+                .Where(e => e.CompanyId == req.CompanyId && e.IsActive == true);
+
+            if (req.Scope == "selected")
+            {
+                if (!req.EmployeeId.HasValue) return new List<EmployeeRow>();
+                empQuery = empQuery.Where(e => e.Id == req.EmployeeId.Value);
+            }
+            else if (req.Scope == "lines")
+            {
+                if (!req.DepartmentId.HasValue) return new List<EmployeeRow>();
+                empQuery = empQuery.Where(e => e.DepartmentId == req.DepartmentId.Value);
+            }
+
+            return await empQuery
+                .Join(_context.Company_Departments,
+                      e => e.DepartmentId, d => d.Id,
+                      (e, d) => new EmployeeRow
+                      {
+                          Id = e.Id,
+                          EPFNo = e.EPFNo,
+                          FirstName = e.FirstName,
+                          LastName = e.LastName,
+                          DepartmentName = d.DepartmentName,
+                           ShiftBlockId   = e.ShiftBlockId
+                      })
+                .OrderBy(x => x.EPFNo)
+                .ToListAsync();
+        }
+// Returns true if the given day-of-week matches the shift block's
+// FirstWeeklyDayOffDay (half=false) or FirstWeeklyHalfDayOffDay (half=true).
+private static bool DetermineWeeklyDayOff(
+    string dayOfWeek,
+    int? shiftBlockId,
+    Dictionary<int, ShiftBlock> shiftBlockById,
+    bool half)
 {
-    var empQuery = _context.Employees
-        .AsNoTracking()
-        .Where(e => e.CompanyId == req.CompanyId && e.IsActive == true);
+    if (!shiftBlockId.HasValue) return false;
+    if (!shiftBlockById.TryGetValue(shiftBlockId.Value, out var sb) || sb == null)
+        return false;
 
-    if (req.Scope == "selected")
-    {
-        if (!req.EmployeeId.HasValue) return new List<EmployeeRow>();
-        empQuery = empQuery.Where(e => e.Id == req.EmployeeId.Value);
-    }
-    else if (req.Scope == "lines")
-    {
-        if (!req.DepartmentId.HasValue) return new List<EmployeeRow>();
-        empQuery = empQuery.Where(e => e.DepartmentId == req.DepartmentId.Value);
-    }
+    var configured = half ? sb.FirstWeeklyHalfDayOffDay : sb.FirstWeeklyDayOffDay;
+    if (string.IsNullOrWhiteSpace(configured)) return false;
 
-    return await empQuery
-        .Join(_context.Company_Departments,
-              e => e.DepartmentId, d => d.Id,
-              (e, d) => new EmployeeRow
-              {
-                  Id             = e.Id,
-                  EPFNo          = e.EPFNo,
-                  FirstName      = e.FirstName,
-                  LastName       = e.LastName,
-                  DepartmentName = d.DepartmentName
-              })
-        .OrderBy(x => x.EPFNo)
-        .ToListAsync();
+    return configured.Trim().Equals(dayOfWeek, StringComparison.OrdinalIgnoreCase);
 }
+        // ============================================================
+        // Shared: build the list of (year, month, monthName) to process.
+        //   - if From/To are supplied → that range (inclusive)
+        //   - else error
+        // ============================================================
+        private List<(int Year, int Month, string MonthName)> BuildPeriodList(LeaveReportRequest req)
+        {
+            if (!req.FromYear.HasValue || string.IsNullOrWhiteSpace(req.FromMonthName)
+                || !req.ToYear.HasValue || string.IsNullOrWhiteSpace(req.ToMonthName))
+                throw new InvalidOperationException("From/To year+month required");
 
-// ============================================================
-// Shared: build the list of (year, month, monthName) to process.
-//   - if From/To are supplied → that range (inclusive)
-//   - else error
-// ============================================================
-private List<(int Year, int Month, string MonthName)> BuildPeriodList(LeaveReportRequest req)
-{
-    if (!req.FromYear.HasValue || string.IsNullOrWhiteSpace(req.FromMonthName)
-        || !req.ToYear.HasValue || string.IsNullOrWhiteSpace(req.ToMonthName))
-        throw new InvalidOperationException("From/To year+month required");
+            int fromMon = GetMonthNumber(req.FromMonthName);
+            int toMon = GetMonthNumber(req.ToMonthName);
+            if (fromMon == 0 || toMon == 0)
+                throw new InvalidOperationException("Invalid month name");
 
-    int fromMon = GetMonthNumber(req.FromMonthName);
-    int toMon   = GetMonthNumber(req.ToMonthName);
-    if (fromMon == 0 || toMon == 0)
-        throw new InvalidOperationException("Invalid month name");
+            int y = req.FromYear.Value, m = fromMon;
+            int endY = req.ToYear.Value, endM = toMon;
 
-    int y = req.FromYear.Value, m = fromMon;
-    int endY = req.ToYear.Value, endM = toMon;
+            if (y * 12 + m > endY * 12 + endM)
+                throw new InvalidOperationException("From must be <= To");
 
-    if (y * 12 + m > endY * 12 + endM)
-        throw new InvalidOperationException("From must be <= To");
+            var list = new List<(int, int, string)>();
+            while (y < endY || (y == endY && m <= endM))
+            {
+                list.Add((y, m, GetMonthNameFromNumber(m)));
+                m++; if (m > 12) { m = 1; y++; }
+            }
+            return list;
+        }
+        // ============================================================
+        // POST /api/attendance/ensure-payroll-period
+        //   Body: { companyId, year, monthName }
+        //   Creates the Payroll_Process row if it doesn't already exist.
+        //   Idempotent — safe to call from any module that needs to
+        //   guarantee a period exists before queuing work.
+        // ============================================================
+        public class EnsurePayrollPeriodRequest
+        {
+            public int CompanyId { get; set; }
+            public int Year { get; set; }
+            public string MonthName { get; set; } = "";
+        }
+        // ============================================================
+        // Ensure a Payroll_Process row exists for (companyId, year, monthName).
+        // If it doesn't exist → INSERT one in "not processing, not locked" state.
+        // If it already exists → no-op.
+        // Returns: (exists, created, locked, processing) — created = true only when
+        // this call actually inserted the row.
+        // Safe to call concurrently — uses INSERT … WHERE NOT EXISTS, which is
+        // atomic against another insert racing to create the same row.
+        // ============================================================
+        private async Task<(bool exists, bool created, bool locked, bool processing)>
+            EnsurePayrollPeriodAsync(int companyId, int year, string monthName, int userId)
+        {
+            using var conn = new SqlConnection(_connectionString);
 
-    var list = new List<(int, int, string)>();
-    while (y < endY || (y == endY && m <= endM))
-    {
-        list.Add((y, m, GetMonthNameFromNumber(m)));
-        m++; if (m > 12) { m = 1; y++; }
-    }
-    return list;
-}
-// ============================================================
-// POST /api/attendance/ensure-payroll-period
-//   Body: { companyId, year, monthName }
-//   Creates the Payroll_Process row if it doesn't already exist.
-//   Idempotent — safe to call from any module that needs to
-//   guarantee a period exists before queuing work.
-// ============================================================
-public class EnsurePayrollPeriodRequest
-{
-    public int CompanyId { get; set; }
-    public int Year { get; set; }
-    public string MonthName { get; set; } = "";
-}
-// ============================================================
-// Ensure a Payroll_Process row exists for (companyId, year, monthName).
-// If it doesn't exist → INSERT one in "not processing, not locked" state.
-// If it already exists → no-op.
-// Returns: (exists, created, locked, processing) — created = true only when
-// this call actually inserted the row.
-// Safe to call concurrently — uses INSERT … WHERE NOT EXISTS, which is
-// atomic against another insert racing to create the same row.
-// ============================================================
-private async Task<(bool exists, bool created, bool locked, bool processing)>
-    EnsurePayrollPeriodAsync(int companyId, int year, string monthName, int userId)
-{
-    using var conn = new SqlConnection(_connectionString);
-
-    // 1) Already there?
-    const string getSql = @"
+            // 1) Already there?
+            const string getSql = @"
         SELECT TOP 1
             [processing] AS Processing,
             [locked]     AS Locked
@@ -2787,29 +2865,29 @@ private async Task<(bool exists, bool created, bool locked, bool processing)>
           AND year       = @Year
           AND month      = @Month";
 
-    var existing = await conn.QueryFirstOrDefaultAsync<dynamic>(
-        getSql, new { CompanyId = companyId, Year = year, Month = monthName });
+            var existing = await conn.QueryFirstOrDefaultAsync<dynamic>(
+                getSql, new { CompanyId = companyId, Year = year, Month = monthName });
 
-    if (existing != null)
-    {
-        return (
-            true,
-            false,
-            (bool)(existing.Locked     ?? false),
-            (bool)(existing.Processing ?? false));
-    }
+            if (existing != null)
+            {
+                return (
+                    true,
+                    false,
+                    (bool)(existing.Locked ?? false),
+                    (bool)(existing.Processing ?? false));
+            }
 
-    // 2) Not there → insert atomically
-    //
-    //    Payroll_Process has a UNIQUE constraint on (company_id, year, month)
-    //    in this schema. If it does NOT, the INSERT below still works because
-    //    of the WHERE NOT EXISTS; but the race window is only closed when the
-    //    unique constraint exists. In practice it always does for this table.
-    //
-    //    The columns we set on insert match the shape GetPayrollPeriodStateAsync
-    //    expects, and set "not processing / not locked" so the client can
-    //    start the queue immediately.
-    const string insertSql = @"
+            // 2) Not there → insert atomically
+            //
+            //    Payroll_Process has a UNIQUE constraint on (company_id, year, month)
+            //    in this schema. If it does NOT, the INSERT below still works because
+            //    of the WHERE NOT EXISTS; but the race window is only closed when the
+            //    unique constraint exists. In practice it always does for this table.
+            //
+            //    The columns we set on insert match the shape GetPayrollPeriodStateAsync
+            //    expects, and set "not processing / not locked" so the client can
+            //    start the queue immediately.
+            const string insertSql = @"
         INSERT INTO Payroll_Process
             (company_id, year, month, payrollStartDate, processing, locked)
         SELECT
@@ -2822,140 +2900,140 @@ private async Task<(bool exists, bool created, bool locked, bool processing)>
               AND month      = @Month
         );";
 
-    // payrollStartDate: first day of the month of `year`/`monthName`
-    int monthNum = GetMonthNumber(monthName);
-    var payrollStart = new DateTime(year, monthNum, 1);
+            // payrollStartDate: first day of the month of `year`/`monthName`
+            int monthNum = GetMonthNumber(monthName);
+            var payrollStart = new DateTime(year, monthNum, 1);
 
-    var inserted = await conn.ExecuteAsync(insertSql, new
-    {
-        CompanyId        = companyId,
-        Year             = year,
-        Month            = monthName,       // Payroll_Process.month stores the name ("April")
-        PayrollStartDate = payrollStart
-    });
-
-    if (inserted > 0)
-    {
-        _logger.LogInformation(
-            "Auto-created Payroll_Process row — company {CompanyId}, {Year}-{Month}",
-            companyId, year, monthName);
-    }
-    else
-    {
-        // Someone else created it between our two statements → just report it exists
-        _logger.LogInformation(
-            "Payroll_Process row for {CompanyId}/{Year}-{Month} was created concurrently",
-            companyId, year, monthName);
-    }
-
-    return (true, inserted > 0, false, false);
-}
-
-
-[HttpPost("ensure-payroll-period")]
-public async Task<IActionResult> EnsurePayrollPeriod([FromBody] EnsurePayrollPeriodRequest req)
-{
-    try
-    {
-        if (req == null || req.CompanyId <= 0 || req.Year <= 0 || string.IsNullOrWhiteSpace(req.MonthName))
-            return BadRequest(new { success = false, message = "companyId, year and monthName are required" });
-
-        // Normalize "April" / "apr" / "04" → "April" so the DB column stays consistent
-        int monthNum = GetMonthNumber(req.MonthName);
-        if (monthNum == 0)
-            return BadRequest(new { success = false, message = "Invalid month name" });
-
-        string canonicalMonth = GetMonthNameFromNumber(monthNum);
-
-        // Optional user id, same pattern as elsewhere
-        int userId = 0;
-        var userIdClaim = User?.FindFirst("UserId")?.Value ?? User?.FindFirst("sub")?.Value;
-        if (!string.IsNullOrEmpty(userIdClaim)) int.TryParse(userIdClaim, out userId);
-
-        var result = await EnsurePayrollPeriodAsync(req.CompanyId, req.Year, canonicalMonth, userId);
-
-        return Ok(new
-        {
-            success = true,
-            data = new
+            var inserted = await conn.ExecuteAsync(insertSql, new
             {
-                exists     = result.exists,
-                created    = result.created,
-                locked     = result.locked,
-                processing = result.processing,
-                companyId  = req.CompanyId,
-                year       = req.Year,
-                monthName  = canonicalMonth
+                CompanyId = companyId,
+                Year = year,
+                Month = monthName,       // Payroll_Process.month stores the name ("April")
+                PayrollStartDate = payrollStart
+            });
+
+            if (inserted > 0)
+            {
+                _logger.LogInformation(
+                    "Auto-created Payroll_Process row — company {CompanyId}, {Year}-{Month}",
+                    companyId, year, monthName);
             }
-        });
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex,
-            "Error ensuring payroll period for company {CompanyId}, {Year}-{Month}",
-            req?.CompanyId, req?.Year, req?.MonthName);
-        return StatusCode(500, new { success = false, message = ex.Message });
-    }
-}
-// ============================================================
-// Shared: timesheet summary numbers for one employee in one period.
-// Mirrors GetTimesheetSummary — but usable inline from other actions.
-// ============================================================
-private async Task<object> BuildTimesheetSummaryAsync(int employeeId, int year, int month)
-{
-    var employee = await _context.Employees.AsNoTracking().FirstOrDefaultAsync(e => e.Id == employeeId);
-    if (employee == null) return null;
+            else
+            {
+                // Someone else created it between our two statements → just report it exists
+                _logger.LogInformation(
+                    "Payroll_Process row for {CompanyId}/{Year}-{Month} was created concurrently",
+                    companyId, year, monthName);
+            }
 
-    var settings   = await _companySettingsService.GetCompanySettingsAsync(employee.CompanyId);
-    var department = await _context.Company_Departments.AsNoTracking()
-        .FirstOrDefaultAsync(d => d.Id == employee.DepartmentId);
+            return (true, inserted > 0, false, false);
+        }
 
-    int startDay = (department != null &&
-        department.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
-        ? settings.SalaryStartDate_Office : settings.SalaryStartDate_Wages;
 
-    var (startDate, endDate) = GetSalaryPeriodRange(year, month, startDay);
+        [HttpPost("ensure-payroll-period")]
+        public async Task<IActionResult> EnsurePayrollPeriod([FromBody] EnsurePayrollPeriodRequest req)
+        {
+            try
+            {
+                if (req == null || req.CompanyId <= 0 || req.Year <= 0 || string.IsNullOrWhiteSpace(req.MonthName))
+                    return BadRequest(new { success = false, message = "companyId, year and monthName are required" });
 
-    using var conn = new SqlConnection(_connectionString);
+                // Normalize "April" / "apr" / "04" → "April" so the DB column stays consistent
+                int monthNum = GetMonthNumber(req.MonthName);
+                if (monthNum == 0)
+                    return BadRequest(new { success = false, message = "Invalid month name" });
 
-    var totalWorkingDays = await conn.ExecuteScalarAsync<int>(@"
+                string canonicalMonth = GetMonthNameFromNumber(monthNum);
+
+                // Optional user id, same pattern as elsewhere
+                int userId = 0;
+                var userIdClaim = User?.FindFirst("UserId")?.Value ?? User?.FindFirst("sub")?.Value;
+                if (!string.IsNullOrEmpty(userIdClaim)) int.TryParse(userIdClaim, out userId);
+
+                var result = await EnsurePayrollPeriodAsync(req.CompanyId, req.Year, canonicalMonth, userId);
+
+                return Ok(new
+                {
+                    success = true,
+                    data = new
+                    {
+                        exists = result.exists,
+                        created = result.created,
+                        locked = result.locked,
+                        processing = result.processing,
+                        companyId = req.CompanyId,
+                        year = req.Year,
+                        monthName = canonicalMonth
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Error ensuring payroll period for company {CompanyId}, {Year}-{Month}",
+                    req?.CompanyId, req?.Year, req?.MonthName);
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+        // ============================================================
+        // Shared: timesheet summary numbers for one employee in one period.
+        // Mirrors GetTimesheetSummary — but usable inline from other actions.
+        // ============================================================
+        private async Task<object> BuildTimesheetSummaryAsync(int employeeId, int year, int month)
+        {
+            var employee = await _context.Employees.AsNoTracking().FirstOrDefaultAsync(e => e.Id == employeeId);
+            if (employee == null) return null;
+
+            var settings = await _companySettingsService.GetCompanySettingsAsync(employee.CompanyId);
+            var department = await _context.Company_Departments.AsNoTracking()
+                .FirstOrDefaultAsync(d => d.Id == employee.DepartmentId);
+
+            int startDay = (department != null &&
+                department.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
+                ? settings.SalaryStartDate_Office : settings.SalaryStartDate_Wages;
+
+            var (startDate, endDate) = GetSalaryPeriodRange(year, month, startDay);
+
+            using var conn = new SqlConnection(_connectionString);
+
+            var totalWorkingDays = await conn.ExecuteScalarAsync<int>(@"
         SELECT COUNT(*) FROM TimeSheet
         WHERE EmployeeId = @Emp AND FirstInDate >= @From AND FirstInDate <= @To
           AND FirstInTime IS NOT NULL AND FirstOutTime IS NOT NULL
           AND (DayType IS NULL OR DayType NOT IN ('No Pay','No Pay - Half'))",
-        new { Emp = employeeId, From = startDate, To = endDate });
+                new { Emp = employeeId, From = startDate, To = endDate });
 
-    var totalNoPayCount = await conn.ExecuteScalarAsync<decimal?>(@"
+            var totalNoPayCount = await conn.ExecuteScalarAsync<decimal?>(@"
         SELECT ISNULL(SUM(CASE WHEN DayType = 'No Pay' THEN 1.0
                                WHEN DayType = 'No Pay - Half' THEN 0.5
                                ELSE 0.0 END), 0)
         FROM TimeSheet
         WHERE EmployeeId = @Emp AND FirstInDate >= @From AND FirstInDate <= @To
           AND DayType IN ('No Pay','No Pay - Half')",
-        new { Emp = employeeId, From = startDate, To = endDate }) ?? 0m;
+                new { Emp = employeeId, From = startDate, To = endDate }) ?? 0m;
 
-    var totalLeaveTaken = await conn.ExecuteScalarAsync<decimal?>(@"
+            var totalLeaveTaken = await conn.ExecuteScalarAsync<decimal?>(@"
         SELECT ISNULL(SUM(CASE WHEN IsHalfDay = 1 THEN 0.5 ELSE 1.0 END), 0)
         FROM [Leave]
         WHERE EmployeeId = @Emp AND LeaveDate >= @From AND LeaveDate <= @To
           AND Status = 'Approved'",
-        new { Emp = employeeId, From = startDate, To = endDate }) ?? 0m;
+                new { Emp = employeeId, From = startDate, To = endDate }) ?? 0m;
 
-    var totalPayCutHours = await conn.ExecuteScalarAsync<decimal?>(@"
+            var totalPayCutHours = await conn.ExecuteScalarAsync<decimal?>(@"
         SELECT ISNULL(SUM(CAST(DATEDIFF(MINUTE, CAST('00:00:00' AS TIME), LateHours) AS DECIMAL(18,4)) / 60.0), 0)
         FROM TimeSheet
         WHERE EmployeeId = @Emp AND FirstInDate >= @From AND FirstInDate <= @To
           AND LateHours IS NOT NULL",
-        new { Emp = employeeId, From = startDate, To = endDate }) ?? 0m;
+                new { Emp = employeeId, From = startDate, To = endDate }) ?? 0m;
 
-    var totalWorkingHours = await conn.ExecuteScalarAsync<decimal?>(@"
+            var totalWorkingHours = await conn.ExecuteScalarAsync<decimal?>(@"
         SELECT ISNULL(SUM(CAST(DATEDIFF(MINUTE, CAST('00:00:00' AS TIME), WorkHours) AS DECIMAL(18,4)) / 60.0), 0)
         FROM TimeSheet
         WHERE EmployeeId = @Emp AND FirstInDate >= @From AND FirstInDate <= @To
           AND WorkHours IS NOT NULL",
-        new { Emp = employeeId, From = startDate, To = endDate }) ?? 0m;
+                new { Emp = employeeId, From = startDate, To = endDate }) ?? 0m;
 
-    var ot = await conn.QuerySingleOrDefaultAsync<dynamic>(@"
+            var ot = await conn.QuerySingleOrDefaultAsync<dynamic>(@"
         SELECT
           ISNULL(SUM(CAST(DATEDIFF(MINUTE, CAST('00:00:00' AS TIME), OtHoursNormal)          AS DECIMAL(18,4))) / 60.0, 0) AS Normal,
           ISNULL(SUM(CAST(DATEDIFF(MINUTE, CAST('00:00:00' AS TIME), OtHoursWeeklyDayOff)    AS DECIMAL(18,4))) / 60.0, 0) AS WeeklyDayOff,
@@ -2964,98 +3042,100 @@ private async Task<object> BuildTimesheetSummaryAsync(int employeeId, int year, 
           ISNULL(SUM(CAST(DATEDIFF(MINUTE, CAST('00:00:00' AS TIME), OtHoursBankHoliday)     AS DECIMAL(18,4))) / 60.0, 0) AS BankHoliday
         FROM TimeSheet
         WHERE EmployeeId = @Emp AND FirstInDate >= @From AND FirstInDate <= @To",
-        new { Emp = employeeId, From = startDate, To = endDate });
+                new { Emp = employeeId, From = startDate, To = endDate });
 
-    var totalFullNight = await conn.ExecuteScalarAsync<int>(@"
+            var totalFullNight = await conn.ExecuteScalarAsync<int>(@"
         SELECT COUNT(*) FROM NightDates
         WHERE EmployeeId = @Emp AND [Date] >= @From AND [Date] <= @To AND IsFullNight = 1",
-        new { Emp = employeeId, From = startDate, To = endDate });
+                new { Emp = employeeId, From = startDate, To = endDate });
 
-    return new
-    {
-        periodKey              = $"{year}-{GetMonthNameFromNumber(month)}",
-        startDate, endDate,
-        totalWorkingDays,
-        totalNoPayCount        = Math.Round(totalNoPayCount, 2),
-        totalLeaveTaken        = Math.Round(totalLeaveTaken, 2),
-        totalPayCutHours       = Math.Round(totalPayCutHours, 2),
-        totalWorkingHours      = Math.Round(totalWorkingHours, 2),
-        totalOtNormal           = Math.Round((decimal)(ot?.Normal          ?? 0m), 2),
-        totalOtWeeklyDayOff     = Math.Round((decimal)(ot?.WeeklyDayOff    ?? 0m), 2),
-        totalOtWeeklyHalfDayOff = Math.Round((decimal)(ot?.WeeklyHalfDayOff ?? 0m), 2),
-        totalOtPoya             = Math.Round((decimal)(ot?.Poya            ?? 0m), 2),
-        totalOtMercantile       = 0m,
-        totalOtBankHoliday      = Math.Round((decimal)(ot?.BankHoliday     ?? 0m), 2),
-        totalFullNight
-    };
-}
-
-// ============================================================
-// Shared: daily rows for one employee in one period.
-// Mirrors GetTimesheet — but usable inline from other actions.
-// ============================================================
-private async Task<object> BuildTimesheetDaysAsync(int employeeId, int year, int month)
-{
-    var employee = await _context.Employees.AsNoTracking().FirstOrDefaultAsync(e => e.Id == employeeId);
-    if (employee == null) return null;
-
-    var settings   = await _companySettingsService.GetCompanySettingsAsync(employee.CompanyId);
-    var department = await _context.Company_Departments.AsNoTracking()
-        .FirstOrDefaultAsync(d => d.Id == employee.DepartmentId);
-
-    int startDay = (department != null &&
-        department.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
-        ? settings.SalaryStartDate_Office : settings.SalaryStartDate_Wages;
-
-    var (startDate, endDate) = GetSalaryPeriodRange(year, month, startDay);
-
-    var rows = await _context.TimeSheets
-        .Where(t => t.EmployeeId == employeeId &&
-                    ((t.FirstInDate  >= startDate && t.FirstInDate  <= endDate) ||
-                     (t.SecondInDate >= startDate && t.SecondInDate <= endDate)))
-        .ToListAsync();
-
-    var days = new List<object>();
-    var cur = startDate;
-    while (cur <= endDate)
-    {
-        var row = rows.FirstOrDefault(t =>
-            (t.FirstInDate.HasValue  && t.FirstInDate.Value.Date  == cur.Date) ||
-            (t.SecondInDate.HasValue && t.SecondInDate.Value.Date == cur.Date));
-
-        days.Add(new
-        {
-            date       = cur,
-            dayName    = cur.DayOfWeek.ToString(),
-            workHours  = row?.WorkHours?.ToString(@"hh\:mm")     ?? "00:00",
-            lateHours  = row?.LateHours?.ToString(@"hh\:mm")     ?? "00:00",
-            otNormal   = row?.OtHoursNormal?.ToString(@"hh\:mm") ?? "00:00",
-            otDouble   = "00:00",
-            timesheetRecord = row == null ? null : new
+            return new
             {
-                dayType   = row.DayType ?? "Normal",
-                firstInTime  = row.FirstInTime,
-                firstOutTime = row.FirstOutTime,
-                firstOutDate = row.FirstOutDate,
-                firstShiftBlockId = row.FirstShiftBlockId
-            }
-        });
-        cur = cur.AddDays(1);
-    }
-    return days;
-}
+                periodKey = $"{year}-{GetMonthNameFromNumber(month)}",
+                startDate,
+                endDate,
+                totalWorkingDays,
+                totalNoPayCount = Math.Round(totalNoPayCount, 2),
+                totalLeaveTaken = Math.Round(totalLeaveTaken, 2),
+                totalPayCutHours = Math.Round(totalPayCutHours, 2),
+                totalWorkingHours = Math.Round(totalWorkingHours, 2),
+                totalOtNormal = Math.Round((decimal)(ot?.Normal ?? 0m), 2),
+                totalOtWeeklyDayOff = Math.Round((decimal)(ot?.WeeklyDayOff ?? 0m), 2),
+                totalOtWeeklyHalfDayOff = Math.Round((decimal)(ot?.WeeklyHalfDayOff ?? 0m), 2),
+                totalOtPoya = Math.Round((decimal)(ot?.Poya ?? 0m), 2),
+                totalOtMercantile = 0m,
+                totalOtBankHoliday = Math.Round((decimal)(ot?.BankHoliday ?? 0m), 2),
+                totalFullNight
+            };
+        }
 
-// ============================================================
-// Employee row DTO used by all report endpoints
-// ============================================================
-private class EmployeeRow
-{
-    public int Id { get; set; }
-    public int EPFNo { get; set; }
-    public string FirstName { get; set; } = "";
-    public string LastName { get; set; } = "";
-    public string? DepartmentName { get; set; }
-}
+        // ============================================================
+        // Shared: daily rows for one employee in one period.
+        // Mirrors GetTimesheet — but usable inline from other actions.
+        // ============================================================
+        private async Task<object> BuildTimesheetDaysAsync(int employeeId, int year, int month)
+        {
+            var employee = await _context.Employees.AsNoTracking().FirstOrDefaultAsync(e => e.Id == employeeId);
+            if (employee == null) return null;
+
+            var settings = await _companySettingsService.GetCompanySettingsAsync(employee.CompanyId);
+            var department = await _context.Company_Departments.AsNoTracking()
+                .FirstOrDefaultAsync(d => d.Id == employee.DepartmentId);
+
+            int startDay = (department != null &&
+                department.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
+                ? settings.SalaryStartDate_Office : settings.SalaryStartDate_Wages;
+
+            var (startDate, endDate) = GetSalaryPeriodRange(year, month, startDay);
+
+            var rows = await _context.TimeSheets
+                .Where(t => t.EmployeeId == employeeId &&
+                            ((t.FirstInDate >= startDate && t.FirstInDate <= endDate) ||
+                             (t.SecondInDate >= startDate && t.SecondInDate <= endDate)))
+                .ToListAsync();
+
+            var days = new List<object>();
+            var cur = startDate;
+            while (cur <= endDate)
+            {
+                var row = rows.FirstOrDefault(t =>
+                    (t.FirstInDate.HasValue && t.FirstInDate.Value.Date == cur.Date) ||
+                    (t.SecondInDate.HasValue && t.SecondInDate.Value.Date == cur.Date));
+
+                days.Add(new
+                {
+                    date = cur,
+                    dayName = cur.DayOfWeek.ToString(),
+                    workHours = row?.WorkHours?.ToString(@"hh\:mm") ?? "00:00",
+                    lateHours = row?.LateHours?.ToString(@"hh\:mm") ?? "00:00",
+                    otNormal = row?.OtHoursNormal?.ToString(@"hh\:mm") ?? "00:00",
+                    otDouble = "00:00",
+                    timesheetRecord = row == null ? null : new
+                    {
+                        dayType = row.DayType ?? "Normal",
+                        firstInTime = row.FirstInTime,
+                        firstOutTime = row.FirstOutTime,
+                        firstOutDate = row.FirstOutDate,
+                        firstShiftBlockId = row.FirstShiftBlockId
+                    }
+                });
+                cur = cur.AddDays(1);
+            }
+            return days;
+        }
+
+        // ============================================================
+        // Employee row DTO used by all report endpoints
+        // ============================================================
+        private class EmployeeRow
+        {
+            public int Id { get; set; }
+            public int EPFNo { get; set; }
+            public string FirstName { get; set; } = "";
+            public string LastName { get; set; } = "";
+            public string? DepartmentName { get; set; }
+            public int? ShiftBlockId { get; set; }   
+        }
         // ============================================================
         // SAVE / UPDATE SHIFT BLOCK for a single day
         // ============================================================
@@ -3125,98 +3205,98 @@ private class EmployeeRow
         }
         // ============================================================
         // ============================================================
-// GET /api/attendance/summary
-//   Either year+monthName  OR  fromDate+toDate (overrides)
-// ============================================================
-// ============================================================
-// GET /api/attendance/summary
-//   Mode 1: year+monthName
-//   Mode 2: fromYear+fromMonth+toYear+toMonth (period range)
-// ============================================================
-[HttpGet("summary")]
-public async Task<IActionResult> GetTimesheetSummary(
-    [FromQuery] int employeeId,
-    [FromQuery] string? year,
-    [FromQuery] string? monthName,
-    [FromQuery] int? fromYear,
-    [FromQuery] string? fromMonth,
-    [FromQuery] int? toYear,
-    [FromQuery] string? toMonth)
-{
-    try
-    {
-        if (employeeId <= 0)
-            return BadRequest(new { success = false, message = "employeeId is required" });
-
-        var employee = await _context.Employees
-            .AsNoTracking()
-            .FirstOrDefaultAsync(e => e.Id == employeeId);
-
-        if (employee == null)
-            return NotFound(new { success = false, message = "Employee not found" });
-
-        var companySettings = await _companySettingsService.GetCompanySettingsAsync(employee.CompanyId);
-        if (companySettings == null)
-            return BadRequest(new { success = false, message = "Company settings not found" });
-
-        var department = await _context.Company_Departments
-            .AsNoTracking()
-            .FirstOrDefaultAsync(d => d.Id == employee.DepartmentId);
-
-        int salaryStartDay = department != null &&
-            department.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase)
-            ? companySettings.SalaryStartDate_Office
-            : companySettings.SalaryStartDate_Wages;
-
-        int targetYear  = string.IsNullOrEmpty(year) ? DateTime.Now.Year : int.Parse(year);
-        int targetMonth = GetMonthNumberFromName(monthName) ?? DateTime.Now.Month;
-        if (targetMonth == 0)
-            return BadRequest(new { success = false, message = "Invalid month name" });
-
-        // ── Base range from single period ──
-        DateTime startDate, endDate;
-        if (salaryStartDay == 1)
+        // GET /api/attendance/summary
+        //   Either year+monthName  OR  fromDate+toDate (overrides)
+        // ============================================================
+        // ============================================================
+        // GET /api/attendance/summary
+        //   Mode 1: year+monthName
+        //   Mode 2: fromYear+fromMonth+toYear+toMonth (period range)
+        // ============================================================
+        [HttpGet("summary")]
+        public async Task<IActionResult> GetTimesheetSummary(
+            [FromQuery] int employeeId,
+            [FromQuery] string? year,
+            [FromQuery] string? monthName,
+            [FromQuery] int? fromYear,
+            [FromQuery] string? fromMonth,
+            [FromQuery] int? toYear,
+            [FromQuery] string? toMonth)
         {
-            startDate = new DateTime(targetYear, targetMonth, 1);
-            endDate   = new DateTime(targetYear, targetMonth, DateTime.DaysInMonth(targetYear, targetMonth));
-        }
-        else
-        {
-            startDate = new DateTime(targetYear, targetMonth, salaryStartDay);
-            var nextMonth = startDate.AddMonths(1);
-            endDate = new DateTime(nextMonth.Year, nextMonth.Month, salaryStartDay).AddDays(-1);
-        }
-
-        // ── Period-range override ──
-        if (fromYear.HasValue && toYear.HasValue
-            && !string.IsNullOrWhiteSpace(fromMonth) && !string.IsNullOrWhiteSpace(toMonth))
-        {
-            int fromMonthNum = GetMonthNumber(fromMonth);
-            int toMonthNum   = GetMonthNumber(toMonth);
-
-            if (fromMonthNum > 0 && toMonthNum > 0)
+            try
             {
-                if (salaryStartDay == 1)
-                    startDate = new DateTime(fromYear.Value, fromMonthNum, 1);
-                else
-                    startDate = new DateTime(fromYear.Value, fromMonthNum, salaryStartDay);
+                if (employeeId <= 0)
+                    return BadRequest(new { success = false, message = "employeeId is required" });
 
+                var employee = await _context.Employees
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(e => e.Id == employeeId);
+
+                if (employee == null)
+                    return NotFound(new { success = false, message = "Employee not found" });
+
+                var companySettings = await _companySettingsService.GetCompanySettingsAsync(employee.CompanyId);
+                if (companySettings == null)
+                    return BadRequest(new { success = false, message = "Company settings not found" });
+
+                var department = await _context.Company_Departments
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(d => d.Id == employee.DepartmentId);
+
+                int salaryStartDay = department != null &&
+                    department.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase)
+                    ? companySettings.SalaryStartDate_Office
+                    : companySettings.SalaryStartDate_Wages;
+
+                int targetYear = string.IsNullOrEmpty(year) ? DateTime.Now.Year : int.Parse(year);
+                int targetMonth = GetMonthNumberFromName(monthName) ?? DateTime.Now.Month;
+                if (targetMonth == 0)
+                    return BadRequest(new { success = false, message = "Invalid month name" });
+
+                // ── Base range from single period ──
+                DateTime startDate, endDate;
                 if (salaryStartDay == 1)
-                    endDate = new DateTime(toYear.Value, toMonthNum,
-                        DateTime.DaysInMonth(toYear.Value, toMonthNum));
+                {
+                    startDate = new DateTime(targetYear, targetMonth, 1);
+                    endDate = new DateTime(targetYear, targetMonth, DateTime.DaysInMonth(targetYear, targetMonth));
+                }
                 else
                 {
-                    var toPeriodStart = new DateTime(toYear.Value, toMonthNum, salaryStartDay);
-                    var afterToMonth  = toPeriodStart.AddMonths(1);
-                    endDate = new DateTime(afterToMonth.Year, afterToMonth.Month, salaryStartDay).AddDays(-1);
+                    startDate = new DateTime(targetYear, targetMonth, salaryStartDay);
+                    var nextMonth = startDate.AddMonths(1);
+                    endDate = new DateTime(nextMonth.Year, nextMonth.Month, salaryStartDay).AddDays(-1);
                 }
-            }
-        }
 
-        using var connection = new SqlConnection(_connectionString);
+                // ── Period-range override ──
+                if (fromYear.HasValue && toYear.HasValue
+                    && !string.IsNullOrWhiteSpace(fromMonth) && !string.IsNullOrWhiteSpace(toMonth))
+                {
+                    int fromMonthNum = GetMonthNumber(fromMonth);
+                    int toMonthNum = GetMonthNumber(toMonth);
 
-        // 1) Working days
-        const string workingDaysSql = @"
+                    if (fromMonthNum > 0 && toMonthNum > 0)
+                    {
+                        if (salaryStartDay == 1)
+                            startDate = new DateTime(fromYear.Value, fromMonthNum, 1);
+                        else
+                            startDate = new DateTime(fromYear.Value, fromMonthNum, salaryStartDay);
+
+                        if (salaryStartDay == 1)
+                            endDate = new DateTime(toYear.Value, toMonthNum,
+                                DateTime.DaysInMonth(toYear.Value, toMonthNum));
+                        else
+                        {
+                            var toPeriodStart = new DateTime(toYear.Value, toMonthNum, salaryStartDay);
+                            var afterToMonth = toPeriodStart.AddMonths(1);
+                            endDate = new DateTime(afterToMonth.Year, afterToMonth.Month, salaryStartDay).AddDays(-1);
+                        }
+                    }
+                }
+
+                using var connection = new SqlConnection(_connectionString);
+
+                // 1) Working days
+                const string workingDaysSql = @"
             SELECT COUNT(*)
             FROM TimeSheet
             WHERE EmployeeId = @EmployeeId
@@ -3226,11 +3306,11 @@ public async Task<IActionResult> GetTimesheetSummary(
               AND (DayType IS NULL
                    OR DayType NOT IN ('No Pay', 'No Pay - Half'))";
 
-        var totalWorkingDays = await connection.ExecuteScalarAsync<int>(
-            workingDaysSql, new { EmployeeId = employeeId, StartDate = startDate, EndDate = endDate });
+                var totalWorkingDays = await connection.ExecuteScalarAsync<int>(
+                    workingDaysSql, new { EmployeeId = employeeId, StartDate = startDate, EndDate = endDate });
 
-        // 2) No-Pay count
-        const string noPaySql = @"
+                // 2) No-Pay count
+                const string noPaySql = @"
             SELECT ISNULL(SUM(
                 CASE WHEN DayType = 'No Pay'      THEN 1.0
                      WHEN DayType = 'No Pay - Half' THEN 0.5
@@ -3241,11 +3321,11 @@ public async Task<IActionResult> GetTimesheetSummary(
               AND FirstInDate <= @EndDate
               AND DayType IN ('No Pay', 'No Pay - Half')";
 
-        var totalNoPayCount = await connection.ExecuteScalarAsync<decimal?>(
-            noPaySql, new { EmployeeId = employeeId, StartDate = startDate, EndDate = endDate }) ?? 0m;
+                var totalNoPayCount = await connection.ExecuteScalarAsync<decimal?>(
+                    noPaySql, new { EmployeeId = employeeId, StartDate = startDate, EndDate = endDate }) ?? 0m;
 
-        // 3) Leave taken
-        const string leaveTakenSql = @"
+                // 3) Leave taken
+                const string leaveTakenSql = @"
             SELECT ISNULL(SUM(CASE WHEN IsHalfDay = 1 THEN 0.5 ELSE 1.0 END), 0)
             FROM [Leave]
             WHERE EmployeeId = @EmployeeId
@@ -3253,11 +3333,11 @@ public async Task<IActionResult> GetTimesheetSummary(
               AND LeaveDate <= @EndDate
               AND Status = 'Approved'";
 
-        var totalLeaveTaken = await connection.ExecuteScalarAsync<decimal?>(
-            leaveTakenSql, new { EmployeeId = employeeId, StartDate = startDate, EndDate = endDate }) ?? 0m;
+                var totalLeaveTaken = await connection.ExecuteScalarAsync<decimal?>(
+                    leaveTakenSql, new { EmployeeId = employeeId, StartDate = startDate, EndDate = endDate }) ?? 0m;
 
-        // 4) Pay-cut hours
-        const string payCutSql = @"
+                // 4) Pay-cut hours
+                const string payCutSql = @"
             SELECT ISNULL(SUM(
                 CAST(DATEDIFF(MINUTE, CAST('00:00:00' AS TIME), LateHours) AS DECIMAL(18,4)) / 60.0
             ), 0)
@@ -3267,11 +3347,11 @@ public async Task<IActionResult> GetTimesheetSummary(
               AND FirstInDate <= @EndDate
               AND LateHours IS NOT NULL";
 
-        var totalPayCutHours = await connection.ExecuteScalarAsync<decimal?>(
-            payCutSql, new { EmployeeId = employeeId, StartDate = startDate, EndDate = endDate }) ?? 0m;
+                var totalPayCutHours = await connection.ExecuteScalarAsync<decimal?>(
+                    payCutSql, new { EmployeeId = employeeId, StartDate = startDate, EndDate = endDate }) ?? 0m;
 
-        // 5) Working hours
-        const string workingHoursSql = @"
+                // 5) Working hours
+                const string workingHoursSql = @"
             SELECT ISNULL(SUM(
                 CAST(DATEDIFF(MINUTE, CAST('00:00:00' AS TIME), WorkHours) AS DECIMAL(18,4)) / 60.0
             ), 0)
@@ -3281,11 +3361,11 @@ public async Task<IActionResult> GetTimesheetSummary(
               AND FirstInDate <= @EndDate
               AND WorkHours IS NOT NULL";
 
-        var totalWorkingHours = await connection.ExecuteScalarAsync<decimal?>(
-            workingHoursSql, new { EmployeeId = employeeId, StartDate = startDate, EndDate = endDate }) ?? 0m;
+                var totalWorkingHours = await connection.ExecuteScalarAsync<decimal?>(
+                    workingHoursSql, new { EmployeeId = employeeId, StartDate = startDate, EndDate = endDate }) ?? 0m;
 
-        // 6) OT summary
-        const string otSql = @"
+                // 6) OT summary
+                const string otSql = @"
             SELECT
               ISNULL(SUM(CAST(DATEDIFF(MINUTE, CAST('00:00:00' AS TIME), OtHoursNormal)          AS DECIMAL(18,4))) / 60.0, 0) AS TotalOtNormal,
               ISNULL(SUM(CAST(DATEDIFF(MINUTE, CAST('00:00:00' AS TIME), OtHoursWeeklyDayOff)    AS DECIMAL(18,4))) / 60.0, 0) AS TotalOtWeeklyDayOff,
@@ -3298,18 +3378,18 @@ public async Task<IActionResult> GetTimesheetSummary(
               AND FirstInDate >= @StartDate
               AND FirstInDate <= @EndDate";
 
-        var otRow = await connection.QuerySingleOrDefaultAsync<dynamic>(
-            otSql, new { EmployeeId = employeeId, StartDate = startDate, EndDate = endDate });
+                var otRow = await connection.QuerySingleOrDefaultAsync<dynamic>(
+                    otSql, new { EmployeeId = employeeId, StartDate = startDate, EndDate = endDate });
 
-        decimal totalOtNormal           = otRow?.TotalOtNormal           ?? 0m;
-        decimal totalOtWeeklyDayOff     = otRow?.TotalOtWeeklyDayOff     ?? 0m;
-        decimal totalOtWeeklyHalfDayOff = otRow?.TotalOtWeeklyHalfDayOff ?? 0m;
-        decimal totalOtPoya             = otRow?.TotalOtPoya             ?? 0m;
-        decimal totalOtBankHoliday      = otRow?.TotalOtBankHoliday      ?? 0m;
-        decimal totalOtMercantile       = otRow?.TotalOtMercantile       ?? 0m;
+                decimal totalOtNormal = otRow?.TotalOtNormal ?? 0m;
+                decimal totalOtWeeklyDayOff = otRow?.TotalOtWeeklyDayOff ?? 0m;
+                decimal totalOtWeeklyHalfDayOff = otRow?.TotalOtWeeklyHalfDayOff ?? 0m;
+                decimal totalOtPoya = otRow?.TotalOtPoya ?? 0m;
+                decimal totalOtBankHoliday = otRow?.TotalOtBankHoliday ?? 0m;
+                decimal totalOtMercantile = otRow?.TotalOtMercantile ?? 0m;
 
-        // 7) Full Night
-        const string fullNightSql = @"
+                // 7) Full Night
+                const string fullNightSql = @"
             SELECT COUNT(*)
             FROM NightDates
             WHERE EmployeeId = @EmployeeId
@@ -3317,63 +3397,63 @@ public async Task<IActionResult> GetTimesheetSummary(
               AND [Date] <= @EndDate
               AND IsFullNight = 1";
 
-        var totalFullNight = await connection.ExecuteScalarAsync<int>(
-            fullNightSql, new { EmployeeId = employeeId, StartDate = startDate, EndDate = endDate });
+                var totalFullNight = await connection.ExecuteScalarAsync<int>(
+                    fullNightSql, new { EmployeeId = employeeId, StartDate = startDate, EndDate = endDate });
 
-        return Ok(new
-        {
-            success = true,
-            data = new
-            {
-                PeriodKey = $"{targetYear}-{GetMonthNameFromNumber(targetMonth)}",
-                StartDate = startDate,
-                EndDate   = endDate,
+                return Ok(new
+                {
+                    success = true,
+                    data = new
+                    {
+                        PeriodKey = $"{targetYear}-{GetMonthNameFromNumber(targetMonth)}",
+                        StartDate = startDate,
+                        EndDate = endDate,
 
-                TotalWorkingDays   = totalWorkingDays,
-                TotalNoPayCount    = Math.Round(totalNoPayCount, 2),
-                TotalLeaveTaken    = Math.Round(totalLeaveTaken, 2),
-                TotalPayCutHours   = Math.Round(totalPayCutHours, 2),
-                TotalWorkingHours  = Math.Round(totalWorkingHours, 2),
+                        TotalWorkingDays = totalWorkingDays,
+                        TotalNoPayCount = Math.Round(totalNoPayCount, 2),
+                        TotalLeaveTaken = Math.Round(totalLeaveTaken, 2),
+                        TotalPayCutHours = Math.Round(totalPayCutHours, 2),
+                        TotalWorkingHours = Math.Round(totalWorkingHours, 2),
 
-                TotalOtNormal           = Math.Round(totalOtNormal, 2),
-                TotalOtWeeklyDayOff     = Math.Round(totalOtWeeklyDayOff, 2),
-                TotalOtWeeklyHalfDayOff = Math.Round(totalOtWeeklyHalfDayOff, 2),
-                TotalOtPoya             = Math.Round(totalOtPoya, 2),
-                TotalOtMercantile       = Math.Round(totalOtMercantile, 2),
-                TotalOtBankHoliday      = Math.Round(totalOtBankHoliday, 2),
+                        TotalOtNormal = Math.Round(totalOtNormal, 2),
+                        TotalOtWeeklyDayOff = Math.Round(totalOtWeeklyDayOff, 2),
+                        TotalOtWeeklyHalfDayOff = Math.Round(totalOtWeeklyHalfDayOff, 2),
+                        TotalOtPoya = Math.Round(totalOtPoya, 2),
+                        TotalOtMercantile = Math.Round(totalOtMercantile, 2),
+                        TotalOtBankHoliday = Math.Round(totalOtBankHoliday, 2),
 
-                TotalFullNight = totalFullNight
+                        TotalFullNight = totalFullNight
+                    }
+                });
             }
-        });
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "Error building timesheet summary for employee {EmployeeId}", employeeId);
-        return StatusCode(500, new { success = false, message = ex.Message });
-    }
-}
-// ============================================================
-// GET /api/attendance/payroll-period-status
-//   returns { exists, processing, locked } for a given period
-// ============================================================
-[HttpGet("payroll-period-status")]
-public async Task<IActionResult> GetPayrollPeriodStatus(
-    [FromQuery] int companyId,
-    [FromQuery] int year,
-    [FromQuery] string monthName)
-{
-    try
-    {
-        if (companyId <= 0 || year <= 0 || string.IsNullOrWhiteSpace(monthName))
-            return BadRequest(new { success = false, message = "companyId, year, monthName required" });
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error building timesheet summary for employee {EmployeeId}", employeeId);
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+        // ============================================================
+        // GET /api/attendance/payroll-period-status
+        //   returns { exists, processing, locked } for a given period
+        // ============================================================
+        [HttpGet("payroll-period-status")]
+        public async Task<IActionResult> GetPayrollPeriodStatus(
+            [FromQuery] int companyId,
+            [FromQuery] int year,
+            [FromQuery] string monthName)
+        {
+            try
+            {
+                if (companyId <= 0 || year <= 0 || string.IsNullOrWhiteSpace(monthName))
+                    return BadRequest(new { success = false, message = "companyId, year, monthName required" });
 
-        int monthNum = GetMonthNumber(monthName);
-        if (monthNum == 0)
-            return BadRequest(new { success = false, message = "Invalid month name" });
+                int monthNum = GetMonthNumber(monthName);
+                if (monthNum == 0)
+                    return BadRequest(new { success = false, message = "Invalid month name" });
 
-        using var connection = new SqlConnection(_connectionString);
+                using var connection = new SqlConnection(_connectionString);
 
-        const string sql = @"
+                const string sql = @"
             SELECT TOP 1
                 [processing] AS Processing,
                 [locked]     AS Locked
@@ -3382,63 +3462,63 @@ public async Task<IActionResult> GetPayrollPeriodStatus(
               AND year       = @Year
               AND month      = @Month";
 
-        var row = await connection.QueryFirstOrDefaultAsync<dynamic>(
-            sql,
-            new { CompanyId = companyId, Year = year, Month = GetMonthName(monthNum) });
+                var row = await connection.QueryFirstOrDefaultAsync<dynamic>(
+                    sql,
+                    new { CompanyId = companyId, Year = year, Month = GetMonthName(monthNum) });
 
-        if (row == null)
-        {
-            return Ok(new
-            {
-                success = true,
-                data = new { exists = false, processing = false, locked = false }
-            });
-        }
+                if (row == null)
+                {
+                    return Ok(new
+                    {
+                        success = true,
+                        data = new { exists = false, processing = false, locked = false }
+                    });
+                }
 
-        return Ok(new
-        {
-            success = true,
-            data = new
-            {
-                exists     = true,
-                processing = (bool)(row.Processing ?? false),
-                locked     = (bool)(row.Locked     ?? false)
+                return Ok(new
+                {
+                    success = true,
+                    data = new
+                    {
+                        exists = true,
+                        processing = (bool)(row.Processing ?? false),
+                        locked = (bool)(row.Locked ?? false)
+                    }
+                });
             }
-        });
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "Error loading payroll period status");
-        return StatusCode(500, new { success = false, message = ex.Message });
-    }
-}
-// ============================================================
-// GET /api/attendance/row-attendance
-//   Raw rows from Attendance table for a date range
-// ============================================================
-[HttpGet("row-attendance")]
-public async Task<IActionResult> GetRowAttendance(
-    [FromQuery] int employeeId,
-    [FromQuery] string fromDate,
-    [FromQuery] string toDate)
-{
-    try
-    {
-        if (employeeId <= 0 || string.IsNullOrWhiteSpace(fromDate) || string.IsNullOrWhiteSpace(toDate))
-            return BadRequest(new { success = false, message = "employeeId, fromDate and toDate are required" });
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error loading payroll period status");
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+        // ============================================================
+        // GET /api/attendance/row-attendance
+        //   Raw rows from Attendance table for a date range
+        // ============================================================
+        [HttpGet("row-attendance")]
+        public async Task<IActionResult> GetRowAttendance(
+            [FromQuery] int employeeId,
+            [FromQuery] string fromDate,
+            [FromQuery] string toDate)
+        {
+            try
+            {
+                if (employeeId <= 0 || string.IsNullOrWhiteSpace(fromDate) || string.IsNullOrWhiteSpace(toDate))
+                    return BadRequest(new { success = false, message = "employeeId, fromDate and toDate are required" });
 
-        if (!DateTime.TryParse(fromDate, out var from) || !DateTime.TryParse(toDate, out var to))
-            return BadRequest(new { success = false, message = "Invalid date format" });
+                if (!DateTime.TryParse(fromDate, out var from) || !DateTime.TryParse(toDate, out var to))
+                    return BadRequest(new { success = false, message = "Invalid date format" });
 
-        if (from > to)
-            return BadRequest(new { success = false, message = "From date must be before To date" });
+                if (from > to)
+                    return BadRequest(new { success = false, message = "From date must be before To date" });
 
-        // Include the full day of `to`
-        var toEnd = to.Date.AddDays(1).AddSeconds(-1);
+                // Include the full day of `to`
+                var toEnd = to.Date.AddDays(1).AddSeconds(-1);
 
-        using var connection = new SqlConnection(_connectionString);
+                using var connection = new SqlConnection(_connectionString);
 
-        var sql = @"
+                var sql = @"
             SELECT
                 a.id                AS Id,
                 a.employee_id       AS EmployeeId,
@@ -3451,47 +3531,47 @@ public async Task<IActionResult> GetRowAttendance(
               AND a.datetime <= @ToDate
             ORDER BY a.datetime";
 
-        var rows = await connection.QueryAsync<dynamic>(sql, new
+                var rows = await connection.QueryAsync<dynamic>(sql, new
+                {
+                    EmployeeId = employeeId,
+                    FromDate = from.Date,
+                    ToDate = toEnd
+                });
+
+                // Return list of { dateTime, inputType, inputDateTime }
+                var data = rows.Select(r => new
+                {
+                    id = (int)r.Id,
+                    employeeId = (int)r.EmployeeId,
+                    dateTime = (DateTime)r.DateTime,
+                    inputType = (string?)r.InputType ?? "Manual",
+                    inputDateTime = (DateTime?)r.InputDateTime
+                });
+
+                return Ok(new { success = true, data });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error loading row attendance");
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+        // ============================================================
+        // LEAVE REPORT — rows (date range)
+        // ============================================================
+        [HttpGet("report/leave/rows")]
+        public async Task<IActionResult> GetLeaveRows(
+            [FromQuery] int employeeId,
+            [FromQuery] string fromDate,
+            [FromQuery] string toDate)
         {
-            EmployeeId = employeeId,
-            FromDate = from.Date,
-            ToDate = toEnd
-        });
+            try
+            {
+                if (employeeId <= 0 || !DateTime.TryParse(fromDate, out var from) || !DateTime.TryParse(toDate, out var to))
+                    return BadRequest(new { success = false, message = "Invalid params" });
 
-        // Return list of { dateTime, inputType, inputDateTime }
-        var data = rows.Select(r => new
-        {
-            id          = (int)r.Id,
-            employeeId  = (int)r.EmployeeId,
-            dateTime    = (DateTime)r.DateTime,
-            inputType   = (string?)r.InputType ?? "Manual",
-            inputDateTime = (DateTime?)r.InputDateTime
-        });
-
-        return Ok(new { success = true, data });
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "Error loading row attendance");
-        return StatusCode(500, new { success = false, message = ex.Message });
-    }
-}
-// ============================================================
-// LEAVE REPORT — rows (date range)
-// ============================================================
-[HttpGet("report/leave/rows")]
-public async Task<IActionResult> GetLeaveRows(
-    [FromQuery] int employeeId,
-    [FromQuery] string fromDate,
-    [FromQuery] string toDate)
-{
-    try
-    {
-        if (employeeId <= 0 || !DateTime.TryParse(fromDate, out var from) || !DateTime.TryParse(toDate, out var to))
-            return BadRequest(new { success = false, message = "Invalid params" });
-
-        using var conn = new SqlConnection(_connectionString);
-        var sql = @"
+                using var conn = new SqlConnection(_connectionString);
+                var sql = @"
             SELECT LeaveDate, LeaveType, IsHalfDay
             FROM [Leave]
             WHERE EmployeeId = @Emp
@@ -3500,55 +3580,55 @@ public async Task<IActionResult> GetLeaveRows(
               AND Status = 'Approved'
             ORDER BY LeaveDate";
 
-        var rows = await conn.QueryAsync<dynamic>(sql,
-            new { Emp = employeeId, From = from.Date, To = to.Date.AddDays(1).AddSeconds(-1) });
+                var rows = await conn.QueryAsync<dynamic>(sql,
+                    new { Emp = employeeId, From = from.Date, To = to.Date.AddDays(1).AddSeconds(-1) });
 
-        return Ok(new
-        {
-            success = true,
-            data = rows.Select(r => new
+                return Ok(new
+                {
+                    success = true,
+                    data = rows.Select(r => new
+                    {
+                        leaveDate = (DateTime)r.LeaveDate,
+                        leaveType = (string?)r.LeaveType ?? "",
+                        isHalfDay = (bool?)r.IsHalfDay ?? false
+                    })
+                });
+            }
+            catch (Exception ex)
             {
-                leaveDate = (DateTime)r.LeaveDate,
-                leaveType = (string?)r.LeaveType ?? "",
-                isHalfDay = (bool?)r.IsHalfDay ?? false
-            })
-        });
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "Leave rows failed");
-        return StatusCode(500, new { success = false, message = ex.Message });
-    }
-}
-private (DateTime Start, DateTime End) GetSalaryPeriodRange(int year, int monthNum, int startDay)
-{
-    if (startDay <= 1)
-    {
-        return (new DateTime(year, monthNum, 1),
-                new DateTime(year, monthNum, DateTime.DaysInMonth(year, monthNum)));
-    }
-    var start = new DateTime(year, monthNum, startDay);
-    var nxt   = start.AddMonths(1);
-    var end   = new DateTime(nxt.Year, nxt.Month, startDay).AddDays(-1);
-    return (start, end);
-}
+                _logger.LogError(ex, "Leave rows failed");
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+        private (DateTime Start, DateTime End) GetSalaryPeriodRange(int year, int monthNum, int startDay)
+        {
+            if (startDay <= 1)
+            {
+                return (new DateTime(year, monthNum, 1),
+                        new DateTime(year, monthNum, DateTime.DaysInMonth(year, monthNum)));
+            }
+            var start = new DateTime(year, monthNum, startDay);
+            var nxt = start.AddMonths(1);
+            var end = new DateTime(nxt.Year, nxt.Month, startDay).AddDays(-1);
+            return (start, end);
+        }
 
-// ============================================================
-// NO PAY REPORT — rows
-// ============================================================
-[HttpGet("report/nopay/rows")]
-public async Task<IActionResult> GetNoPayRows(
-    [FromQuery] int employeeId,
-    [FromQuery] string fromDate,
-    [FromQuery] string toDate)
-{
-    try
-    {
-        if (employeeId <= 0 || !DateTime.TryParse(fromDate, out var from) || !DateTime.TryParse(toDate, out var to))
-            return BadRequest(new { success = false, message = "Invalid params" });
+        // ============================================================
+        // NO PAY REPORT — rows
+        // ============================================================
+        [HttpGet("report/nopay/rows")]
+        public async Task<IActionResult> GetNoPayRows(
+            [FromQuery] int employeeId,
+            [FromQuery] string fromDate,
+            [FromQuery] string toDate)
+        {
+            try
+            {
+                if (employeeId <= 0 || !DateTime.TryParse(fromDate, out var from) || !DateTime.TryParse(toDate, out var to))
+                    return BadRequest(new { success = false, message = "Invalid params" });
 
-        using var conn = new SqlConnection(_connectionString);
-        var sql = @"
+                using var conn = new SqlConnection(_connectionString);
+                var sql = @"
             SELECT FirstInDate AS [Date], DayType
             FROM TimeSheet
             WHERE EmployeeId = @Emp
@@ -3557,44 +3637,44 @@ public async Task<IActionResult> GetNoPayRows(
               AND DayType IN ('No Pay', 'No Pay - Half')
             ORDER BY FirstInDate";
 
-        var rows = await conn.QueryAsync<dynamic>(sql,
-            new { Emp = employeeId, From = from.Date, To = to.Date.AddDays(1).AddSeconds(-1) });
+                var rows = await conn.QueryAsync<dynamic>(sql,
+                    new { Emp = employeeId, From = from.Date, To = to.Date.AddDays(1).AddSeconds(-1) });
 
-        return Ok(new
-        {
-            success = true,
-            data = rows.Select(r => new
+                return Ok(new
+                {
+                    success = true,
+                    data = rows.Select(r => new
+                    {
+                        date = (DateTime)r.Date,
+                        dayType = (string?)r.DayType ?? ""
+                    })
+                });
+            }
+            catch (Exception ex)
             {
-                date    = (DateTime)r.Date,
-                dayType = (string?)r.DayType ?? ""
-            })
-        });
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "NoPay rows failed");
-        return StatusCode(500, new { success = false, message = ex.Message });
-    }
-}
+                _logger.LogError(ex, "NoPay rows failed");
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
 
 
 
-// ============================================================
-// LATE HOURS REPORT — rows
-// ============================================================
-[HttpGet("report/late/rows")]
-public async Task<IActionResult> GetLateRows(
-    [FromQuery] int employeeId,
-    [FromQuery] string fromDate,
-    [FromQuery] string toDate)
-{
-    try
-    {
-        if (employeeId <= 0 || !DateTime.TryParse(fromDate, out var from) || !DateTime.TryParse(toDate, out var to))
-            return BadRequest(new { success = false, message = "Invalid params" });
+        // ============================================================
+        // LATE HOURS REPORT — rows
+        // ============================================================
+        [HttpGet("report/late/rows")]
+        public async Task<IActionResult> GetLateRows(
+            [FromQuery] int employeeId,
+            [FromQuery] string fromDate,
+            [FromQuery] string toDate)
+        {
+            try
+            {
+                if (employeeId <= 0 || !DateTime.TryParse(fromDate, out var from) || !DateTime.TryParse(toDate, out var to))
+                    return BadRequest(new { success = false, message = "Invalid params" });
 
-        using var conn = new SqlConnection(_connectionString);
-        var sql = @"
+                using var conn = new SqlConnection(_connectionString);
+                var sql = @"
             SELECT FirstInDate AS [Date], LateHours
             FROM TimeSheet
             WHERE EmployeeId = @Emp
@@ -3604,46 +3684,47 @@ public async Task<IActionResult> GetLateRows(
               AND LateHours > '00:00:00'
             ORDER BY FirstInDate";
 
-        var rows = await conn.QueryAsync<dynamic>(sql,
-            new { Emp = employeeId, From = from.Date, To = to.Date.AddDays(1).AddSeconds(-1) });
+                var rows = await conn.QueryAsync<dynamic>(sql,
+                    new { Emp = employeeId, From = from.Date, To = to.Date.AddDays(1).AddSeconds(-1) });
 
-        var data = rows.Select(r => {
-            var ts = (TimeSpan?)r.LateHours ?? TimeSpan.Zero;
-            return new
+                var data = rows.Select(r =>
+                {
+                    var ts = (TimeSpan?)r.LateHours ?? TimeSpan.Zero;
+                    return new
+                    {
+                        date = (DateTime)r.Date,
+                        lateHours = ts.ToString(@"hh\:mm"),
+                        lateHoursDecimal = Math.Round(ts.TotalHours, 4)
+                    };
+                });
+
+                return Ok(new { success = true, data });
+            }
+            catch (Exception ex)
             {
-                date         = (DateTime)r.Date,
-                lateHours    = ts.ToString(@"hh\:mm"),
-                lateHoursDecimal = Math.Round(ts.TotalHours, 4)
-            };
-        });
-
-        return Ok(new { success = true, data });
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "Late rows failed");
-        return StatusCode(500, new { success = false, message = ex.Message });
-    }
-}
+                _logger.LogError(ex, "Late rows failed");
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
 
 
 
-// ============================================================
-// OT HOURS REPORT — rows
-// ============================================================
-[HttpGet("report/ot/rows")]
-public async Task<IActionResult> GetOtRows(
-    [FromQuery] int employeeId,
-    [FromQuery] string fromDate,
-    [FromQuery] string toDate)
-{
-    try
-    {
-        if (employeeId <= 0 || !DateTime.TryParse(fromDate, out var from) || !DateTime.TryParse(toDate, out var to))
-            return BadRequest(new { success = false, message = "Invalid params" });
+        // ============================================================
+        // OT HOURS REPORT — rows
+        // ============================================================
+        [HttpGet("report/ot/rows")]
+        public async Task<IActionResult> GetOtRows(
+            [FromQuery] int employeeId,
+            [FromQuery] string fromDate,
+            [FromQuery] string toDate)
+        {
+            try
+            {
+                if (employeeId <= 0 || !DateTime.TryParse(fromDate, out var from) || !DateTime.TryParse(toDate, out var to))
+                    return BadRequest(new { success = false, message = "Invalid params" });
 
-        using var conn = new SqlConnection(_connectionString);
-        const string sql = @"
+                using var conn = new SqlConnection(_connectionString);
+                const string sql = @"
             SELECT FirstInDate AS [Date],
                    OtHoursNormal,
                    OtHoursWeeklyDayOff,
@@ -3656,98 +3737,98 @@ public async Task<IActionResult> GetOtRows(
               AND FirstInDate <= @To
             ORDER BY FirstInDate";
 
-        var rows = await conn.QueryAsync<dynamic>(sql,
-            new { Emp = employeeId, From = from.Date, To = to.Date.AddDays(1).AddSeconds(-1) });
+                var rows = await conn.QueryAsync<dynamic>(sql,
+                    new { Emp = employeeId, From = from.Date, To = to.Date.AddDays(1).AddSeconds(-1) });
 
-        decimal H(TimeSpan? t) => (decimal)(t?.TotalHours ?? 0);
+                decimal H(TimeSpan? t) => (decimal)(t?.TotalHours ?? 0);
 
-        var data = rows
-            .Select(r => new
+                var data = rows
+                    .Select(r => new
+                    {
+                        date = (DateTime)r.Date,
+                        normal = Math.Round(H((TimeSpan?)r.OtHoursNormal), 4),
+                        weeklyDayOff = Math.Round(H((TimeSpan?)r.OtHoursWeeklyDayOff), 4),
+                        weeklyHalfDayOff = Math.Round(H((TimeSpan?)r.OtHoursWeeklyHalfDayOff), 4),
+                        poya = Math.Round(H((TimeSpan?)r.OtHoursPoya), 4),
+                        mercantile = 0m,
+                        bankHoliday = Math.Round(H((TimeSpan?)r.OtHoursBankHoliday), 4)
+                    })
+                    .Where(x => x.normal + x.weeklyDayOff + x.weeklyHalfDayOff + x.poya + x.bankHoliday > 0)
+                    .ToList();
+
+                return Ok(new { success = true, data });
+            }
+            catch (Exception ex)
             {
-                date             = (DateTime)r.Date,
-                normal           = Math.Round(H((TimeSpan?)r.OtHoursNormal), 4),
-                weeklyDayOff     = Math.Round(H((TimeSpan?)r.OtHoursWeeklyDayOff), 4),
-                weeklyHalfDayOff = Math.Round(H((TimeSpan?)r.OtHoursWeeklyHalfDayOff), 4),
-                poya             = Math.Round(H((TimeSpan?)r.OtHoursPoya), 4),
-                mercantile       = 0m,
-                bankHoliday      = Math.Round(H((TimeSpan?)r.OtHoursBankHoliday), 4)
-            })
-            .Where(x => x.normal + x.weeklyDayOff + x.weeklyHalfDayOff + x.poya + x.bankHoliday > 0)
-            .ToList();
+                _logger.LogError(ex, "OT rows failed");
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
 
-        return Ok(new { success = true, data });
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "OT rows failed");
-        return StatusCode(500, new { success = false, message = ex.Message });
-    }
-}
-
-// ============================================================
-// Helper — check if a period exists in Payroll_Process
-// ============================================================
-private async Task<(bool exists, bool locked, bool processing)> GetPayrollPeriodStateAsync(
-    SqlConnection conn, int companyId, int year, string monthName)
-{
-    const string sql = @"
+        // ============================================================
+        // Helper — check if a period exists in Payroll_Process
+        // ============================================================
+        private async Task<(bool exists, bool locked, bool processing)> GetPayrollPeriodStateAsync(
+            SqlConnection conn, int companyId, int year, string monthName)
+        {
+            const string sql = @"
         SELECT TOP 1 [processing] AS Processing, [locked] AS Locked
         FROM Payroll_Process
         WHERE company_id = @CompanyId
           AND year       = @Year
           AND month      = @Month";
 
-    var row = await conn.QueryFirstOrDefaultAsync<dynamic>(sql,
-        new { CompanyId = companyId, Year = year, Month = monthName });
+            var row = await conn.QueryFirstOrDefaultAsync<dynamic>(sql,
+                new { CompanyId = companyId, Year = year, Month = monthName });
 
-    if (row == null)
-        return (false, false, false);
+            if (row == null)
+                return (false, false, false);
 
-    return (
-        true,
-        (bool)(row.Locked     ?? false),
-        (bool)(row.Processing ?? false));
-}
+            return (
+                true,
+                (bool)(row.Locked ?? false),
+                (bool)(row.Processing ?? false));
+        }
 
-// ============================================================
-// LEAVE REPORT — summary (single month, category by leave type)
-// ============================================================
-[HttpGet("report/leave/summary")]
-public async Task<IActionResult> GetLeaveSummary(
-    [FromQuery] int employeeId,
-    [FromQuery] int year,
-    [FromQuery] string monthName)
-{
-    try
-    {
-        if (employeeId <= 0 || year <= 0 || string.IsNullOrWhiteSpace(monthName))
-            return BadRequest(new { success = false, message = "Invalid params" });
+        // ============================================================
+        // LEAVE REPORT — summary (single month, category by leave type)
+        // ============================================================
+        [HttpGet("report/leave/summary")]
+        public async Task<IActionResult> GetLeaveSummary(
+            [FromQuery] int employeeId,
+            [FromQuery] int year,
+            [FromQuery] string monthName)
+        {
+            try
+            {
+                if (employeeId <= 0 || year <= 0 || string.IsNullOrWhiteSpace(monthName))
+                    return BadRequest(new { success = false, message = "Invalid params" });
 
-        int monthNum = GetMonthNumber(monthName);
-        if (monthNum == 0) return BadRequest(new { success = false, message = "Invalid month" });
+                int monthNum = GetMonthNumber(monthName);
+                if (monthNum == 0) return BadRequest(new { success = false, message = "Invalid month" });
 
-        var employee = await _context.Employees.AsNoTracking().FirstOrDefaultAsync(e => e.Id == employeeId);
-        if (employee == null) return NotFound(new { success = false, message = "Employee not found" });
+                var employee = await _context.Employees.AsNoTracking().FirstOrDefaultAsync(e => e.Id == employeeId);
+                if (employee == null) return NotFound(new { success = false, message = "Employee not found" });
 
-        var settings   = await _companySettingsService.GetCompanySettingsAsync(employee.CompanyId);
-        var department = await _context.Company_Departments.AsNoTracking()
-            .FirstOrDefaultAsync(d => d.Id == employee.DepartmentId);
-        int startDay = (department != null &&
-            department.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
-            ? settings.SalaryStartDate_Office : settings.SalaryStartDate_Wages;
+                var settings = await _companySettingsService.GetCompanySettingsAsync(employee.CompanyId);
+                var department = await _context.Company_Departments.AsNoTracking()
+                    .FirstOrDefaultAsync(d => d.Id == employee.DepartmentId);
+                int startDay = (department != null &&
+                    department.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
+                    ? settings.SalaryStartDate_Office : settings.SalaryStartDate_Wages;
 
-        using var conn = new SqlConnection(_connectionString);
+                using var conn = new SqlConnection(_connectionString);
 
-        // 1. Does the payroll period exist?
-        var state = await GetPayrollPeriodStateAsync(conn, employee.CompanyId, year, monthName);
-        if (!state.exists)
-            return Ok(new { success = true, data = new { exists = false } });
+                // 1. Does the payroll period exist?
+                var state = await GetPayrollPeriodStateAsync(conn, employee.CompanyId, year, monthName);
+                if (!state.exists)
+                    return Ok(new { success = true, data = new { exists = false } });
 
-        // 2. Compute the salary-period date range
-        var (startDate, endDate) = GetSalaryPeriodRange(year, monthNum, startDay);
+                // 2. Compute the salary-period date range
+                var (startDate, endDate) = GetSalaryPeriodRange(year, monthNum, startDay);
 
-        // 3. Total + category breakdown
-        const string sql = @"
+                // 3. Total + category breakdown
+                const string sql = @"
             SELECT 
                 ISNULL(LeaveType, 'Unknown') AS LeaveType,
                 SUM(CASE WHEN IsHalfDay = 1 THEN 0.5 ELSE 1.0 END) AS Days
@@ -3759,73 +3840,73 @@ public async Task<IActionResult> GetLeaveSummary(
             GROUP BY LeaveType
             ORDER BY LeaveType";
 
-        var rows = (await conn.QueryAsync<dynamic>(sql,
-            new { Emp = employeeId, From = startDate, To = endDate })).ToList();
+                var rows = (await conn.QueryAsync<dynamic>(sql,
+                    new { Emp = employeeId, From = startDate, To = endDate })).ToList();
 
-        decimal total = rows.Sum(r => (decimal)(r.Days ?? 0m));
+                decimal total = rows.Sum(r => (decimal)(r.Days ?? 0m));
 
-        var byCategory = rows.Select(r => new
-        {
-            category = (string)r.LeaveType,
-            days     = Math.Round((decimal)(r.Days ?? 0m), 2)
-        }).ToList();
+                var byCategory = rows.Select(r => new
+                {
+                    category = (string)r.LeaveType,
+                    days = Math.Round((decimal)(r.Days ?? 0m), 2)
+                }).ToList();
 
-        return Ok(new
-        {
-            success = true,
-            data = new
-            {
-                exists     = true,
-                locked     = state.locked,
-                processing = state.processing,
-                total      = Math.Round(total, 2),
-                byCategory
+                return Ok(new
+                {
+                    success = true,
+                    data = new
+                    {
+                        exists = true,
+                        locked = state.locked,
+                        processing = state.processing,
+                        total = Math.Round(total, 2),
+                        byCategory
+                    }
+                });
             }
-        });
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "Leave summary failed");
-        return StatusCode(500, new { success = false, message = ex.Message });
-    }
-}
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Leave summary failed");
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
 
-// ============================================================
-// NO PAY REPORT — summary (category by day type)
-// ============================================================
-[HttpGet("report/nopay/summary")]
-public async Task<IActionResult> GetNoPaySummary(
-    [FromQuery] int employeeId,
-    [FromQuery] int year,
-    [FromQuery] string monthName)
-{
-    try
-    {
-        if (employeeId <= 0 || year <= 0 || string.IsNullOrWhiteSpace(monthName))
-            return BadRequest(new { success = false, message = "Invalid params" });
+        // ============================================================
+        // NO PAY REPORT — summary (category by day type)
+        // ============================================================
+        [HttpGet("report/nopay/summary")]
+        public async Task<IActionResult> GetNoPaySummary(
+            [FromQuery] int employeeId,
+            [FromQuery] int year,
+            [FromQuery] string monthName)
+        {
+            try
+            {
+                if (employeeId <= 0 || year <= 0 || string.IsNullOrWhiteSpace(monthName))
+                    return BadRequest(new { success = false, message = "Invalid params" });
 
-        int monthNum = GetMonthNumber(monthName);
-        if (monthNum == 0) return BadRequest(new { success = false, message = "Invalid month" });
+                int monthNum = GetMonthNumber(monthName);
+                if (monthNum == 0) return BadRequest(new { success = false, message = "Invalid month" });
 
-        var employee = await _context.Employees.AsNoTracking().FirstOrDefaultAsync(e => e.Id == employeeId);
-        if (employee == null) return NotFound(new { success = false, message = "Employee not found" });
+                var employee = await _context.Employees.AsNoTracking().FirstOrDefaultAsync(e => e.Id == employeeId);
+                if (employee == null) return NotFound(new { success = false, message = "Employee not found" });
 
-        var settings   = await _companySettingsService.GetCompanySettingsAsync(employee.CompanyId);
-        var department = await _context.Company_Departments.AsNoTracking()
-            .FirstOrDefaultAsync(d => d.Id == employee.DepartmentId);
-        int startDay = (department != null &&
-            department.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
-            ? settings.SalaryStartDate_Office : settings.SalaryStartDate_Wages;
+                var settings = await _companySettingsService.GetCompanySettingsAsync(employee.CompanyId);
+                var department = await _context.Company_Departments.AsNoTracking()
+                    .FirstOrDefaultAsync(d => d.Id == employee.DepartmentId);
+                int startDay = (department != null &&
+                    department.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
+                    ? settings.SalaryStartDate_Office : settings.SalaryStartDate_Wages;
 
-        using var conn = new SqlConnection(_connectionString);
+                using var conn = new SqlConnection(_connectionString);
 
-        var state = await GetPayrollPeriodStateAsync(conn, employee.CompanyId, year, monthName);
-        if (!state.exists)
-            return Ok(new { success = true, data = new { exists = false } });
+                var state = await GetPayrollPeriodStateAsync(conn, employee.CompanyId, year, monthName);
+                if (!state.exists)
+                    return Ok(new { success = true, data = new { exists = false } });
 
-        var (startDate, endDate) = GetSalaryPeriodRange(year, monthNum, startDay);
+                var (startDate, endDate) = GetSalaryPeriodRange(year, monthNum, startDay);
 
-        const string sql = @"
+                const string sql = @"
             SELECT 
                 DayType,
                 SUM(CASE WHEN DayType = 'No Pay - Half' THEN 0.5 ELSE 1.0 END) AS Days
@@ -3837,73 +3918,73 @@ public async Task<IActionResult> GetNoPaySummary(
             GROUP BY DayType
             ORDER BY DayType";
 
-        var rows = (await conn.QueryAsync<dynamic>(sql,
-            new { Emp = employeeId, From = startDate, To = endDate })).ToList();
+                var rows = (await conn.QueryAsync<dynamic>(sql,
+                    new { Emp = employeeId, From = startDate, To = endDate })).ToList();
 
-        decimal total = rows.Sum(r => (decimal)(r.Days ?? 0m));
+                decimal total = rows.Sum(r => (decimal)(r.Days ?? 0m));
 
-        var byCategory = rows.Select(r => new
-        {
-            category = (string)(r.DayType ?? "No Pay"),
-            days     = Math.Round((decimal)(r.Days ?? 0m), 2)
-        }).ToList();
+                var byCategory = rows.Select(r => new
+                {
+                    category = (string)(r.DayType ?? "No Pay"),
+                    days = Math.Round((decimal)(r.Days ?? 0m), 2)
+                }).ToList();
 
-        return Ok(new
-        {
-            success = true,
-            data = new
-            {
-                exists     = true,
-                locked     = state.locked,
-                processing = state.processing,
-                total      = Math.Round(total, 2),
-                byCategory
+                return Ok(new
+                {
+                    success = true,
+                    data = new
+                    {
+                        exists = true,
+                        locked = state.locked,
+                        processing = state.processing,
+                        total = Math.Round(total, 2),
+                        byCategory
+                    }
+                });
             }
-        });
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "NoPay summary failed");
-        return StatusCode(500, new { success = false, message = ex.Message });
-    }
-}
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "NoPay summary failed");
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
 
-// ============================================================
-// LATE HOURS — summary (add payroll existence check + flags)
-// ============================================================
-[HttpGet("report/late/summary")]
-public async Task<IActionResult> GetLateSummary(
-    [FromQuery] int employeeId,
-    [FromQuery] int year,
-    [FromQuery] string monthName)
-{
-    try
-    {
-        if (employeeId <= 0 || year <= 0 || string.IsNullOrWhiteSpace(monthName))
-            return BadRequest(new { success = false, message = "Invalid params" });
+        // ============================================================
+        // LATE HOURS — summary (add payroll existence check + flags)
+        // ============================================================
+        [HttpGet("report/late/summary")]
+        public async Task<IActionResult> GetLateSummary(
+            [FromQuery] int employeeId,
+            [FromQuery] int year,
+            [FromQuery] string monthName)
+        {
+            try
+            {
+                if (employeeId <= 0 || year <= 0 || string.IsNullOrWhiteSpace(monthName))
+                    return BadRequest(new { success = false, message = "Invalid params" });
 
-        int monthNum = GetMonthNumber(monthName);
-        if (monthNum == 0) return BadRequest(new { success = false, message = "Invalid month" });
+                int monthNum = GetMonthNumber(monthName);
+                if (monthNum == 0) return BadRequest(new { success = false, message = "Invalid month" });
 
-        var employee = await _context.Employees.AsNoTracking().FirstOrDefaultAsync(e => e.Id == employeeId);
-        if (employee == null) return NotFound(new { success = false, message = "Employee not found" });
+                var employee = await _context.Employees.AsNoTracking().FirstOrDefaultAsync(e => e.Id == employeeId);
+                if (employee == null) return NotFound(new { success = false, message = "Employee not found" });
 
-        var settings   = await _companySettingsService.GetCompanySettingsAsync(employee.CompanyId);
-        var department = await _context.Company_Departments.AsNoTracking()
-            .FirstOrDefaultAsync(d => d.Id == employee.DepartmentId);
-        int startDay = (department != null &&
-            department.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
-            ? settings.SalaryStartDate_Office : settings.SalaryStartDate_Wages;
+                var settings = await _companySettingsService.GetCompanySettingsAsync(employee.CompanyId);
+                var department = await _context.Company_Departments.AsNoTracking()
+                    .FirstOrDefaultAsync(d => d.Id == employee.DepartmentId);
+                int startDay = (department != null &&
+                    department.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
+                    ? settings.SalaryStartDate_Office : settings.SalaryStartDate_Wages;
 
-        using var conn = new SqlConnection(_connectionString);
+                using var conn = new SqlConnection(_connectionString);
 
-        var state = await GetPayrollPeriodStateAsync(conn, employee.CompanyId, year, monthName);
-        if (!state.exists)
-            return Ok(new { success = true, data = new { exists = false } });
+                var state = await GetPayrollPeriodStateAsync(conn, employee.CompanyId, year, monthName);
+                if (!state.exists)
+                    return Ok(new { success = true, data = new { exists = false } });
 
-        var (startDate, endDate) = GetSalaryPeriodRange(year, monthNum, startDay);
+                var (startDate, endDate) = GetSalaryPeriodRange(year, monthNum, startDay);
 
-        const string sql = @"
+                const string sql = @"
             SELECT ISNULL(SUM(
                 CAST(DATEDIFF(MINUTE, CAST('00:00:00' AS TIME), LateHours) AS DECIMAL(18,4)) / 60.0
             ), 0)
@@ -3913,64 +3994,64 @@ public async Task<IActionResult> GetLateSummary(
               AND FirstInDate <= @To
               AND LateHours IS NOT NULL";
 
-        var total = await conn.ExecuteScalarAsync<decimal>(sql,
-            new { Emp = employeeId, From = startDate, To = endDate });
+                var total = await conn.ExecuteScalarAsync<decimal>(sql,
+                    new { Emp = employeeId, From = startDate, To = endDate });
 
-        return Ok(new
-        {
-            success = true,
-            data = new
-            {
-                exists     = true,
-                locked     = state.locked,
-                processing = state.processing,
-                totalHours = Math.Round(total, 2)
+                return Ok(new
+                {
+                    success = true,
+                    data = new
+                    {
+                        exists = true,
+                        locked = state.locked,
+                        processing = state.processing,
+                        totalHours = Math.Round(total, 2)
+                    }
+                });
             }
-        });
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "Late summary failed");
-        return StatusCode(500, new { success = false, message = ex.Message });
-    }
-}
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Late summary failed");
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
 
-// ============================================================
-// OT HOURS — summary (add payroll existence check + flags)
-// ============================================================
-[HttpGet("report/ot/summary")]
-public async Task<IActionResult> GetOtSummary(
-    [FromQuery] int employeeId,
-    [FromQuery] int year,
-    [FromQuery] string monthName)
-{
-    try
-    {
-        if (employeeId <= 0 || year <= 0 || string.IsNullOrWhiteSpace(monthName))
-            return BadRequest(new { success = false, message = "Invalid params" });
+        // ============================================================
+        // OT HOURS — summary (add payroll existence check + flags)
+        // ============================================================
+        [HttpGet("report/ot/summary")]
+        public async Task<IActionResult> GetOtSummary(
+            [FromQuery] int employeeId,
+            [FromQuery] int year,
+            [FromQuery] string monthName)
+        {
+            try
+            {
+                if (employeeId <= 0 || year <= 0 || string.IsNullOrWhiteSpace(monthName))
+                    return BadRequest(new { success = false, message = "Invalid params" });
 
-        int monthNum = GetMonthNumber(monthName);
-        if (monthNum == 0) return BadRequest(new { success = false, message = "Invalid month" });
+                int monthNum = GetMonthNumber(monthName);
+                if (monthNum == 0) return BadRequest(new { success = false, message = "Invalid month" });
 
-        var employee = await _context.Employees.AsNoTracking().FirstOrDefaultAsync(e => e.Id == employeeId);
-        if (employee == null) return NotFound(new { success = false, message = "Employee not found" });
+                var employee = await _context.Employees.AsNoTracking().FirstOrDefaultAsync(e => e.Id == employeeId);
+                if (employee == null) return NotFound(new { success = false, message = "Employee not found" });
 
-        var settings   = await _companySettingsService.GetCompanySettingsAsync(employee.CompanyId);
-        var department = await _context.Company_Departments.AsNoTracking()
-            .FirstOrDefaultAsync(d => d.Id == employee.DepartmentId);
-        int startDay = (department != null &&
-            department.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
-            ? settings.SalaryStartDate_Office : settings.SalaryStartDate_Wages;
+                var settings = await _companySettingsService.GetCompanySettingsAsync(employee.CompanyId);
+                var department = await _context.Company_Departments.AsNoTracking()
+                    .FirstOrDefaultAsync(d => d.Id == employee.DepartmentId);
+                int startDay = (department != null &&
+                    department.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
+                    ? settings.SalaryStartDate_Office : settings.SalaryStartDate_Wages;
 
-        using var conn = new SqlConnection(_connectionString);
+                using var conn = new SqlConnection(_connectionString);
 
-        var state = await GetPayrollPeriodStateAsync(conn, employee.CompanyId, year, monthName);
-        if (!state.exists)
-            return Ok(new { success = true, data = new { exists = false } });
+                var state = await GetPayrollPeriodStateAsync(conn, employee.CompanyId, year, monthName);
+                if (!state.exists)
+                    return Ok(new { success = true, data = new { exists = false } });
 
-        var (startDate, endDate) = GetSalaryPeriodRange(year, monthNum, startDay);
+                var (startDate, endDate) = GetSalaryPeriodRange(year, monthNum, startDay);
 
-        const string sql = @"
+                const string sql = @"
             SELECT
                 ISNULL(SUM(CAST(DATEDIFF(MINUTE, CAST('00:00:00' AS TIME), OtHoursNormal)          AS DECIMAL(18,4))), 0) / 60.0 AS Normal,
                 ISNULL(SUM(CAST(DATEDIFF(MINUTE, CAST('00:00:00' AS TIME), OtHoursWeeklyDayOff)    AS DECIMAL(18,4))), 0) / 60.0 AS WeeklyDayOff,
@@ -3982,115 +4063,115 @@ public async Task<IActionResult> GetOtSummary(
               AND FirstInDate >= @From
               AND FirstInDate <= @To";
 
-        var r = await conn.QuerySingleAsync<dynamic>(sql, new { Emp = employeeId, From = startDate, To = endDate });
+                var r = await conn.QuerySingleAsync<dynamic>(sql, new { Emp = employeeId, From = startDate, To = endDate });
 
-        return Ok(new
-        {
-            success = true,
-            data = new
-            {
-                exists           = true,
-                locked           = state.locked,
-                processing       = state.processing,
-                normal           = Math.Round((decimal)(r.Normal ?? 0m), 2),
-                weeklyDayOff     = Math.Round((decimal)(r.WeeklyDayOff ?? 0m), 2),
-                weeklyHalfDayOff = Math.Round((decimal)(r.WeeklyHalfDayOff ?? 0m), 2),
-                poya             = Math.Round((decimal)(r.Poya ?? 0m), 2),
-                mercantile       = 0m,
-                bankHoliday      = Math.Round((decimal)(r.BankHoliday ?? 0m), 2)
+                return Ok(new
+                {
+                    success = true,
+                    data = new
+                    {
+                        exists = true,
+                        locked = state.locked,
+                        processing = state.processing,
+                        normal = Math.Round((decimal)(r.Normal ?? 0m), 2),
+                        weeklyDayOff = Math.Round((decimal)(r.WeeklyDayOff ?? 0m), 2),
+                        weeklyHalfDayOff = Math.Round((decimal)(r.WeeklyHalfDayOff ?? 0m), 2),
+                        poya = Math.Round((decimal)(r.Poya ?? 0m), 2),
+                        mercantile = 0m,
+                        bankHoliday = Math.Round((decimal)(r.BankHoliday ?? 0m), 2)
+                    }
+                });
             }
-        });
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "OT summary failed");
-        return StatusCode(500, new { success = false, message = ex.Message });
-    }
-}
-// ============================================================
-// BULK LEAVE SUMMARY
-//   GET /api/attendance/report/leave/summary-bulk
-//     ?companyId=1&year=2025&monthName=April&employeeIds=1,2,3,...
-//   Returns one row per employee — avoids 1048 HTTP round-trips.
-// ============================================================
-[HttpGet("report/leave/summary-bulk")]
-public async Task<IActionResult> GetLeaveSummaryBulk(
-    [FromQuery] int companyId,
-    [FromQuery] int year,
-    [FromQuery] string monthName,
-    [FromQuery] string employeeIds)
-{
-    try
-    {
-        if (companyId <= 0 || year <= 0 || string.IsNullOrWhiteSpace(monthName)
-            || string.IsNullOrWhiteSpace(employeeIds))
-            return BadRequest(new { success = false, message = "Invalid params" });
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "OT summary failed");
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+        // ============================================================
+        // BULK LEAVE SUMMARY
+        //   GET /api/attendance/report/leave/summary-bulk
+        //     ?companyId=1&year=2025&monthName=April&employeeIds=1,2,3,...
+        //   Returns one row per employee — avoids 1048 HTTP round-trips.
+        // ============================================================
+        [HttpGet("report/leave/summary-bulk")]
+        public async Task<IActionResult> GetLeaveSummaryBulk(
+            [FromQuery] int companyId,
+            [FromQuery] int year,
+            [FromQuery] string monthName,
+            [FromQuery] string employeeIds)
+        {
+            try
+            {
+                if (companyId <= 0 || year <= 0 || string.IsNullOrWhiteSpace(monthName)
+                    || string.IsNullOrWhiteSpace(employeeIds))
+                    return BadRequest(new { success = false, message = "Invalid params" });
 
-        int monthNum = GetMonthNumber(monthName);
-        if (monthNum == 0)
-            return BadRequest(new { success = false, message = "Invalid month" });
+                int monthNum = GetMonthNumber(monthName);
+                if (monthNum == 0)
+                    return BadRequest(new { success = false, message = "Invalid month" });
 
-        // ── Parse employee IDs (cap at, say, 5000 to prevent abuse) ──
-        var ids = employeeIds
-            .Split(',', StringSplitOptions.RemoveEmptyEntries)
-            .Select(s => int.TryParse(s.Trim(), out var v) ? v : -1)
-            .Where(v => v > 0)
-            .Distinct()
-            .Take(5000)
-            .ToList();
+                // ── Parse employee IDs (cap at, say, 5000 to prevent abuse) ──
+                var ids = employeeIds
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(s => int.TryParse(s.Trim(), out var v) ? v : -1)
+                    .Where(v => v > 0)
+                    .Distinct()
+                    .Take(5000)
+                    .ToList();
 
-        if (!ids.Any())
-            return Ok(new { success = true, data = new List<object>() });
+                if (!ids.Any())
+                    return Ok(new { success = true, data = new List<object>() });
 
-        // ── Payroll_Process existence check (same as single endpoint) ──
-        using var conn = new SqlConnection(_connectionString);
+                // ── Payroll_Process existence check (same as single endpoint) ──
+                using var conn = new SqlConnection(_connectionString);
 
-        const string statusSql = @"
+                const string statusSql = @"
             SELECT TOP 1 [processing] AS Processing, [locked] AS Locked
             FROM Payroll_Process
             WHERE company_id = @CompanyId AND year = @Year AND month = @Month";
 
-        var statusRow = await conn.QueryFirstOrDefaultAsync<dynamic>(
-            statusSql,
-            new { CompanyId = companyId, Year = year, Month = GetMonthName(monthNum) });
+                var statusRow = await conn.QueryFirstOrDefaultAsync<dynamic>(
+                    statusSql,
+                    new { CompanyId = companyId, Year = year, Month = GetMonthName(monthNum) });
 
-        if (statusRow == null)
-        {
-            // No payroll record for this period — return empty list.
-            return Ok(new { success = true, data = new List<object>() });
-        }
+                if (statusRow == null)
+                {
+                    // No payroll record for this period — return empty list.
+                    return Ok(new { success = true, data = new List<object>() });
+                }
 
-        bool locked     = (bool)(statusRow.Locked     ?? false);
-        bool processing = (bool)(statusRow.Processing ?? false);
+                bool locked = (bool)(statusRow.Locked ?? false);
+                bool processing = (bool)(statusRow.Processing ?? false);
 
-        // ── Get company settings + department salary-start rules for ALL employees at once ──
-        var settings = await _companySettingsService.GetCompanySettingsAsync(companyId);
-        if (settings == null)
-            return BadRequest(new { success = false, message = "Company settings not found" });
+                // ── Get company settings + department salary-start rules for ALL employees at once ──
+                var settings = await _companySettingsService.GetCompanySettingsAsync(companyId);
+                if (settings == null)
+                    return BadRequest(new { success = false, message = "Company settings not found" });
 
-        // Fetch employees in one shot
-        var employees = await _context.Employees
-            .AsNoTracking()
-            .Where(e => ids.Contains(e.Id) && e.CompanyId == companyId)
-            .Join(_context.Company_Departments,
-                  e => e.DepartmentId,
-                  d => d.Id,
-                  (e, d) => new { Employee = e, DepartmentName = d.DepartmentName })
-            .ToListAsync();
+                // Fetch employees in one shot
+                var employees = await _context.Employees
+                    .AsNoTracking()
+                    .Where(e => ids.Contains(e.Id) && e.CompanyId == companyId)
+                    .Join(_context.Company_Departments,
+                          e => e.DepartmentId,
+                          d => d.Id,
+                          (e, d) => new { Employee = e, DepartmentName = d.DepartmentName })
+                    .ToListAsync();
 
-        if (!employees.Any())
-            return Ok(new { success = true, data = new List<object>() });
+                if (!employees.Any())
+                    return Ok(new { success = true, data = new List<object>() });
 
-        // ── Salary-period start day = Office or Wages based on dept ──
-        // Group employees by their effective start day so we can run 1-2 aggregate queries.
-        var groups = employees.GroupBy(x =>
-            !string.IsNullOrEmpty(x.DepartmentName) &&
-            x.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase)
-                ? settings.SalaryStartDate_Office
-                : settings.SalaryStartDate_Wages);
+                // ── Salary-period start day = Office or Wages based on dept ──
+                // Group employees by their effective start day so we can run 1-2 aggregate queries.
+                var groups = employees.GroupBy(x =>
+                    !string.IsNullOrEmpty(x.DepartmentName) &&
+                    x.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase)
+                        ? settings.SalaryStartDate_Office
+                        : settings.SalaryStartDate_Wages);
 
-        // ── Aggregate SQL: total + byCategory for all employees in one query per start-day group ──
-        const string aggregateSql = @"
+                // ── Aggregate SQL: total + byCategory for all employees in one query per start-day group ──
+                const string aggregateSql = @"
             SELECT
                 EmployeeId,
                 ISNULL(LeaveType, 'Unknown') AS LeaveType,
@@ -4102,112 +4183,112 @@ public async Task<IActionResult> GetLeaveSummaryBulk(
               AND Status = 'Approved'
             GROUP BY EmployeeId, LeaveType";
 
-        // Result: employeeId → list of { LeaveType, Days }
-        var buckets = new Dictionary<int, Dictionary<string, decimal>>();
+                // Result: employeeId → list of { LeaveType, Days }
+                var buckets = new Dictionary<int, Dictionary<string, decimal>>();
 
-        foreach (var g in groups)
-        {
-            int startDay = g.Key;
-            var (from, to) = GetSalaryPeriodRange(year, monthNum, startDay);
-            var groupIds   = g.Select(x => x.Employee.Id).ToList();
-
-            var rows = await conn.QueryAsync<dynamic>(aggregateSql, new
-            {
-                Ids  = groupIds,
-                From = from,
-                To   = to
-            });
-
-            foreach (var r in rows)
-            {
-                int empId = (int)r.EmployeeId;
-                string type = (string)r.LeaveType;
-                decimal days = (decimal)r.Days;
-
-                if (!buckets.TryGetValue(empId, out var dict))
+                foreach (var g in groups)
                 {
-                    dict = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
-                    buckets[empId] = dict;
+                    int startDay = g.Key;
+                    var (from, to) = GetSalaryPeriodRange(year, monthNum, startDay);
+                    var groupIds = g.Select(x => x.Employee.Id).ToList();
+
+                    var rows = await conn.QueryAsync<dynamic>(aggregateSql, new
+                    {
+                        Ids = groupIds,
+                        From = from,
+                        To = to
+                    });
+
+                    foreach (var r in rows)
+                    {
+                        int empId = (int)r.EmployeeId;
+                        string type = (string)r.LeaveType;
+                        decimal days = (decimal)r.Days;
+
+                        if (!buckets.TryGetValue(empId, out var dict))
+                        {
+                            dict = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+                            buckets[empId] = dict;
+                        }
+
+                        if (dict.ContainsKey(type)) dict[type] += days;
+                        else dict[type] = days;
+                    }
                 }
 
-                if (dict.ContainsKey(type)) dict[type] += days;
-                else                        dict[type]  = days;
+                // ── Build response ──
+                var result = new List<object>();
+
+                foreach (var emp in employees)
+                {
+                    var dict = buckets.TryGetValue(emp.Employee.Id, out var d)
+                        ? d
+                        : new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+
+                    decimal total = dict.Values.Sum();
+
+                    // Skip employees with no leave (keeps payload small)
+                    if (total <= 0) continue;
+
+                    var byCategory = dict
+                        .Where(kv => kv.Value > 0)
+                        .Select(kv => new
+                        {
+                            category = kv.Key,
+                            days = Math.Round(kv.Value, 2)
+                        })
+                        .ToList();
+
+                    result.Add(new
+                    {
+                        employeeId = emp.Employee.Id,
+                        exists = true,
+                        locked = locked,
+                        processing = processing,
+                        total = Math.Round(total, 2),
+                        byCategory = byCategory
+                    });
+                }
+
+                return Ok(new { success = true, data = result });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Bulk leave summary failed");
+                return StatusCode(500, new { success = false, message = ex.Message });
             }
         }
-
-        // ── Build response ──
-        var result = new List<object>();
-
-        foreach (var emp in employees)
+        // ============================================================
+        // WORKING DAYS — single month
+        // ============================================================
+        [HttpGet("report/workingdays")]
+        public async Task<IActionResult> GetWorkingDays(
+            [FromQuery] int employeeId,
+            [FromQuery] int year,
+            [FromQuery] string monthName)
         {
-            var dict = buckets.TryGetValue(emp.Employee.Id, out var d)
-                ? d
-                : new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
-
-            decimal total = dict.Values.Sum();
-
-            // Skip employees with no leave (keeps payload small)
-            if (total <= 0) continue;
-
-            var byCategory = dict
-                .Where(kv => kv.Value > 0)
-                .Select(kv => new
-                {
-                    category = kv.Key,
-                    days     = Math.Round(kv.Value, 2)
-                })
-                .ToList();
-
-            result.Add(new
+            try
             {
-                employeeId  = emp.Employee.Id,
-                exists      = true,
-                locked      = locked,
-                processing  = processing,
-                total       = Math.Round(total, 2),
-                byCategory  = byCategory
-            });
-        }
+                if (employeeId <= 0 || year <= 0 || string.IsNullOrWhiteSpace(monthName))
+                    return BadRequest(new { success = false, message = "Invalid params" });
 
-        return Ok(new { success = true, data = result });
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "Bulk leave summary failed");
-        return StatusCode(500, new { success = false, message = ex.Message });
-    }
-}
-// ============================================================
-// WORKING DAYS — single month
-// ============================================================
-[HttpGet("report/workingdays")]
-public async Task<IActionResult> GetWorkingDays(
-    [FromQuery] int employeeId,
-    [FromQuery] int year,
-    [FromQuery] string monthName)
-{
-    try
-    {
-        if (employeeId <= 0 || year <= 0 || string.IsNullOrWhiteSpace(monthName))
-            return BadRequest(new { success = false, message = "Invalid params" });
+                int monthNum = GetMonthNumber(monthName);
+                if (monthNum == 0) return BadRequest(new { success = false, message = "Invalid month" });
 
-        int monthNum = GetMonthNumber(monthName);
-        if (monthNum == 0) return BadRequest(new { success = false, message = "Invalid month" });
+                var employee = await _context.Employees.AsNoTracking().FirstOrDefaultAsync(e => e.Id == employeeId);
+                if (employee == null) return NotFound(new { success = false, message = "Employee not found" });
 
-        var employee = await _context.Employees.AsNoTracking().FirstOrDefaultAsync(e => e.Id == employeeId);
-        if (employee == null) return NotFound(new { success = false, message = "Employee not found" });
+                var settings = await _companySettingsService.GetCompanySettingsAsync(employee.CompanyId);
+                var department = await _context.Company_Departments.AsNoTracking()
+                    .FirstOrDefaultAsync(d => d.Id == employee.DepartmentId);
+                int startDay = (department != null &&
+                    department.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
+                    ? settings.SalaryStartDate_Office : settings.SalaryStartDate_Wages;
 
-        var settings = await _companySettingsService.GetCompanySettingsAsync(employee.CompanyId);
-        var department = await _context.Company_Departments.AsNoTracking()
-            .FirstOrDefaultAsync(d => d.Id == employee.DepartmentId);
-        int startDay = (department != null &&
-            department.DepartmentName.Equals("Office", StringComparison.OrdinalIgnoreCase))
-            ? settings.SalaryStartDate_Office : settings.SalaryStartDate_Wages;
+                var (startDate, endDate) = GetSalaryPeriodRange(year, monthNum, startDay);
 
-        var (startDate, endDate) = GetSalaryPeriodRange(year, monthNum, startDay);
-
-        using var conn = new SqlConnection(_connectionString);
-        const string sql = @"
+                using var conn = new SqlConnection(_connectionString);
+                const string sql = @"
             SELECT COUNT(*)
             FROM TimeSheet
             WHERE EmployeeId = @Emp
@@ -4217,17 +4298,17 @@ public async Task<IActionResult> GetWorkingDays(
               AND (DayType IS NULL
                    OR DayType NOT IN ('No Pay', 'No Pay - Half'))";
 
-        var total = await conn.ExecuteScalarAsync<int>(sql,
-            new { Emp = employeeId, From = startDate, To = endDate });
+                var total = await conn.ExecuteScalarAsync<int>(sql,
+                    new { Emp = employeeId, From = startDate, To = endDate });
 
-        return Ok(new { success = true, data = new { totalWorkingDays = total } });
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "Working days failed");
-        return StatusCode(500, new { success = false, message = ex.Message });
-    }
-}
+                return Ok(new { success = true, data = new { totalWorkingDays = total } });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Working days failed");
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
         [HttpGet("shift-block")]
         public async Task<IActionResult> GetShiftBlock([FromQuery] int employeeId, [FromQuery] string date)
         {
@@ -4275,7 +4356,685 @@ public async Task<IActionResult> GetWorkingDays(
                 return StatusCode(500, new { success = false, message = ex.Message });
             }
         }
+       // ═══════════════════════════════════════════════════════════════════
+// POST /api/attendance/upload
+// Accepts multipart/form-data with a single "file" field (.txt or .xlsx)
+// and a "companyId" field. For every uploaded row it:
+//   1. Auto-ensures the Payroll_Process row for that row's month
+//   2. Rejects locked periods
+//   3. Skips duplicates (same employee + second)
+//   4. Inserts with input_type = "upload-{logId}"
+// ═══════════════════════════════════════════════════════════════════
+[HttpPost("upload")]
+[RequestSizeLimit(20 * 1024 * 1024)]     // 20 MB
+public async Task<IActionResult> UploadAttendance(
+    [FromForm] IFormFile file,
+    [FromForm] int companyId)
+{
+    try
+    {
+        // ── 1. Validate inputs ──
+        if (file == null || file.Length == 0)
+            return BadRequest(new { success = false, message = "No file uploaded" });
 
+        if (companyId <= 0)
+            return BadRequest(new { success = false, message = "companyId is required" });
+
+        var ext = Path.GetExtension(file.FileName).TrimStart('.').ToLowerInvariant();
+        if (ext != "txt" && ext != "xlsx" && ext != "xls")
+            return BadRequest(new { success = false, message = "Only .txt or .xlsx files are supported" });
+
+        // ── 2. Parse the file into (epfNo, dateString) rows ──
+        var parsedRows = new List<(int line, string epf, string dateRaw, string? parseError)>();
+        using (var stream = file.OpenReadStream())
+        {
+            if (ext == "txt")
+                ParseTxt(stream, parsedRows);
+            else
+                ParseXlsx(stream, parsedRows);
+        }
+
+        if (parsedRows.Count == 0)
+            return BadRequest(new { success = false, message = "File contains no data rows" });
+
+        // ── 3. Load employee map (EPFNo → Id) for this company ──
+        using var conn = new SqlConnection(_connectionString);
+
+        var empMap = (await conn.QueryAsync<(int Id, int EpfNo)>(
+            "SELECT Id, EPFNo FROM Employees WHERE CompanyId = @c AND IsActive = 1",
+            new { c = companyId }))
+            .ToDictionary(x => x.EpfNo, x => x.Id);
+
+        // ── 3b. Local helper: ensure Payroll_Process exists for (year, month) ──
+        //      Memoised so we hit the DB once per distinct month, not once per row.
+        var periodState = new Dictionary<string, (bool exists, bool locked, bool created)>();
+
+        async Task<(bool exists, bool locked, bool created)> EnsurePeriodForAsync(int year, int month)
+        {
+            string monthName = GetMonthNameFromNumber(month);
+            var key = $"{year}-{monthName}";
+            if (periodState.TryGetValue(key, out var cached)) return cached;
+
+            int uid = 0;
+            var uidClaim = User?.FindFirst("UserId")?.Value ?? User?.FindFirst("sub")?.Value;
+            if (!string.IsNullOrEmpty(uidClaim)) int.TryParse(uidClaim, out uid);
+
+            var result = await EnsurePayrollPeriodAsync(companyId, year, monthName, uid);
+            var state = (result.exists, result.locked, result.created);
+            periodState[key] = state;
+            return state;
+        }
+
+        // ── 4. Insert the upload log header (so we get a logId to embed in input_type) ──
+        int userId = 0;
+        var userIdClaim = User?.FindFirst("UserId")?.Value ?? User?.FindFirst("sub")?.Value;
+        if (!string.IsNullOrEmpty(userIdClaim)) int.TryParse(userIdClaim, out userId);
+
+        string ip = HttpContext?.Connection?.RemoteIpAddress?.ToString() ?? "Unknown";
+
+        const string insertLogSql = @"
+            INSERT INTO AttendanceUploadLog
+                (CompanyId, FileName, FileType, TotalRows, InsertedRows, SkippedRows, ErrorRows,
+                 Status, UploadedAt, UploadedBy, UploadIp)
+            OUTPUT INSERTED.Id
+            VALUES
+                (@CompanyId, @FileName, @FileType, @Total, 0, 0, 0,
+                 'Processing', GETUTCDATE(), @UploadedBy, @Ip);";
+
+        int logId = await conn.ExecuteScalarAsync<int>(insertLogSql, new
+        {
+            CompanyId  = companyId,
+            FileName   = file.FileName,
+            FileType   = ext,
+            Total      = parsedRows.Count,
+            UploadedBy = userId > 0 ? (int?)userId : null,
+            Ip         = ip
+        });
+// Save the uploaded file so it can be re-downloaded later
+string uploadRoot = Path.Combine(
+    Directory.GetCurrentDirectory(), "App_Data", "uploads", "attendance");
+Directory.CreateDirectory(uploadRoot);
+
+string storedName = $"{logId}_{Path.GetFileName(file.FileName)}";
+string storedPath = Path.Combine(uploadRoot, storedName);
+
+// Reset stream if it was already consumed by the parser
+if (file.OpenReadStream().CanSeek) file.OpenReadStream().Position = 0;
+
+using (var fs = System.IO.File.Create(storedPath))
+{
+    await file.CopyToAsync(fs);
+}
+
+await conn.ExecuteAsync(
+    "UPDATE AttendanceUploadLog SET StoredFilePath = @p WHERE Id = @id",
+    new { p = storedPath, id = logId });
+        string inputTypeTag = $"upload-{logId}";
+
+        // ── 5. Insert each row ──
+                // ── 5. Insert each row ──
+        var details = new List<UploadRowDetail>();
+        int inserted = 0, skipped = 0, errors = 0;
+
+        // Every (employeeId, year, month) pair that got at least one INSERTED row.
+        // Used at the end to queue exactly the right reprocessing jobs.
+        var queuedPairs = new HashSet<(int empId, int year, int month)>();
+
+        foreach (var row in parsedRows)
+        {
+            var detail = new UploadRowDetail
+            {
+                LineNumber  = row.line,
+                EpfNo       = row.epf,
+                DateTimeRaw = row.dateRaw
+            };
+
+            // 5a. Parser already flagged this row as bad
+            if (row.parseError != null)
+            {
+                detail.Result  = "ParseError";
+                detail.Message = row.parseError;
+                errors++;
+                details.Add(detail);
+                continue;
+            }
+
+            // 5b. EPF must be numeric
+            // 5b. EPF must be numeric — accept "21", "21.0", " 21 ", "021", "2.1E1", etc.
+if (!TryExtractInt(row.epf, out int epfNo))
+{
+    detail.Result  = "ParseError";
+    detail.Message = $"EPF number is not numeric: '{row.epf}'";
+    errors++;
+    details.Add(detail);
+    continue;
+}
+
+            // 5c. EPF must belong to a known active employee
+            if (!empMap.TryGetValue(epfNo, out int empId))
+            {
+                detail.Result  = "UnknownEpf";
+                detail.Message = $"No active employee with EPF {epfNo}";
+                skipped++;
+                details.Add(detail);
+                continue;
+            }
+
+            // 5d. DateTime must parse
+            if (!TryParseLooseDateTime(row.dateRaw, out var dt))
+            {
+                detail.Result  = "ParseError";
+                detail.Message = $"Unrecognised date/time: '{row.dateRaw}'";
+                errors++;
+                details.Add(detail);
+                continue;
+            }
+
+            // 5e. Ensure the payroll period exists (auto-created on demand)
+            var per = await EnsurePeriodForAsync(dt.Year, dt.Month);
+
+            if (!per.exists)
+            {
+                detail.Result  = "PeriodError";
+                detail.Message = $"Could not ensure payroll period for " +
+                                 $"{GetMonthNameFromNumber(dt.Month)} {dt.Year}";
+                errors++;
+                details.Add(detail);
+                continue;
+            }
+
+            if (per.locked)
+            {
+                detail.Result  = "LockedPeriod";
+                detail.Message = $"Payroll period " +
+                                 $"{GetMonthNameFromNumber(dt.Month)} {dt.Year} is locked — row skipped";
+                skipped++;
+                details.Add(detail);
+                continue;
+            }
+
+            // 5f. Duplicate check — same employee, same second
+            const string dupSql = @"
+                SELECT COUNT(*) FROM Attendance
+                WHERE employee_id = @e
+                  AND datetime >= @d
+                  AND datetime <  DATEADD(SECOND, 1, @d)";
+            int exists = await conn.ExecuteScalarAsync<int>(dupSql, new { e = empId, d = dt });
+            if (exists > 0)
+            {
+                detail.Result  = "Duplicate";
+                detail.Message = $"Already has attendance at {dt:yyyy-MM-dd HH:mm:ss}";
+                skipped++;
+                details.Add(detail);
+                continue;
+            }
+
+            // 5g. Insert
+            const string insSql = @"
+                INSERT INTO Attendance (employee_id, company_id, datetime, input_type, input_datetime)
+                VALUES (@e, @c, @d, @t, GETDATE())";
+            await conn.ExecuteAsync(insSql, new
+            {
+                e = empId,
+                c = companyId,
+                d = dt,
+                t = inputTypeTag
+            });
+
+            detail.Result = "Inserted";
+            inserted++;
+            queuedPairs.Add((empId, dt.Year, dt.Month));
+            details.Add(detail);
+        }
+
+        // ── 6. Finalise the log ──
+        string status = errors == 0 && skipped == 0 ? "Completed"
+                      : inserted > 0                ? "Partial"
+                      :                               "Failed";
+
+        await conn.ExecuteAsync(@"
+            UPDATE AttendanceUploadLog
+            SET InsertedRows = @i, SkippedRows = @s, ErrorRows = @e,
+                Status = @st, Remarks = @r
+            WHERE Id = @id",
+            new
+            {
+                i  = inserted,
+                s  = skipped,
+                e  = errors,
+                st = status,
+                r  = System.Text.Json.JsonSerializer.Serialize(details),
+                id = logId
+            });
+
+        // ── 7. Queue reprocessing for affected employees ──
+               // ── 7. Queue reprocessing for every (employee, period) pair that received at least one row ──
+        //     Skip any period that is locked — recalculating a locked period is never valid.
+        var touchedPairs = queuedPairs;   // HashSet<(int empId, int year, int month)>, populated in the insert loop
+        var queued = new List<object>();
+
+        foreach (var pair in touchedPairs)
+        {
+            string monthName = GetMonthNameFromNumber(pair.month);
+            string periodKey = $"{pair.year}-{monthName}";
+            var st = periodState.TryGetValue(periodKey, out var ps) ? ps : (exists: false, locked: false, created: false);
+
+            // Only queue when the period exists and is not locked
+            if (!st.exists || st.locked)
+            {
+                queued.Add(new
+                {
+                    employeeId = pair.empId,
+                    periodKey,
+                    skipped    = true,
+                    reason     = !st.exists ? "PeriodMissing" : "PeriodLocked"
+                });
+                continue;
+            }
+
+            await TriggerProcessQueue(pair.empId, periodKey, ip);
+            queued.Add(new
+            {
+                employeeId = pair.empId,
+                periodKey,
+                skipped    = false,
+                reason     = (string?)null
+            });
+        }
+
+        // ── 8. Return ──
+        var periodsCreated = periodState
+            .Where(kv => kv.Value.created)
+            .Select(kv => kv.Key)
+            .ToList();
+
+        return Ok(new
+        {
+            success = true,
+            message = $"Upload complete — {inserted} inserted, {skipped} skipped, {errors} errors",
+            data = new
+            {
+                uploadLogId        = logId,
+                totalRows          = parsedRows.Count,
+                insertedRows       = inserted,
+                skippedRows        = skipped,
+                errorRows          = errors,
+                status             = status,
+                details            = details,
+                periodsAutoCreated = periodsCreated,
+                queueSummary = queued
+
+            }
+        });
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Attendance upload failed");
+        return StatusCode(500, new { success = false, message = ex.Message });
+    }
+}
+[HttpGet("upload-logs/{id}/file")]
+public async Task<IActionResult> DownloadUploadFile(int id)
+{
+    using var conn = new SqlConnection(_connectionString);
+    var row = await conn.QueryFirstOrDefaultAsync<dynamic>(
+        "SELECT FileName, FileType, UploadedAt, StoredFilePath, Status " +
+        "FROM AttendanceUploadLog WHERE Id = @id",
+        new { id });
+
+    if (row == null)
+        return NotFound(new { success = false, message = "Upload log not found" });
+    if (((string?)row.Status) == "Deleted")
+        return BadRequest(new { success = false, message = "This upload has been rolled back" });
+
+    string? path = (string?)row.StoredFilePath;
+    if (string.IsNullOrEmpty(path) || !System.IO.File.Exists(path))
+        return NotFound(new { success = false, message = "Source file is no longer available on the server" });
+
+    var bytes = await System.IO.File.ReadAllBytesAsync(path);
+
+    // ── Build the download filename with the original extension + upload datetime ──
+    string originalName = (string?)row.FileName ?? "upload.txt";
+    string ext          = Path.GetExtension(originalName);           // ".txt" or ".xlsx"
+    string baseName     = Path.GetFileNameWithoutExtension(originalName);
+    DateTime uploadedAt = (DateTime)row.UploadedAt;
+    string stamp        = uploadedAt.ToString("yyyy-MM-dd_HH-mm-ss");
+
+    // Sanitize filename — no path separators, no control chars
+    string safeBase = new string(baseName
+        .Where(c => !Path.GetInvalidFileNameChars().Contains(c))
+        .ToArray())
+        .Trim();
+
+    string downloadName = $"{safeBase}_{stamp}{ext}";
+
+    var contentType = ext.ToLowerInvariant() == ".txt"
+        ? "text/plain"
+        : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+    // ★ These two lines are the fix. Browsers need the header exposed.
+    Response.Headers["Access-Control-Expose-Headers"] = "Content-Disposition, Content-Length";
+    Response.Headers["Content-Disposition"] =
+        $"attachment; filename=\"{downloadName}\"; filename*=UTF-8''{Uri.EscapeDataString(downloadName)}";
+
+    return File(bytes, contentType);
+}
+        // ── Parser: TXT (comma, tab, or whitespace separated; first 2 columns only) ──
+        private void ParseTxt(Stream stream, List<(int line, string epf, string dateRaw, string? parseError)> rows)
+        {
+            using var reader = new StreamReader(stream, System.Text.Encoding.UTF8, true);
+            int lineNo = 0;
+            while (!reader.EndOfStream)
+            {
+                var raw = reader.ReadLine();
+                lineNo++;
+                if (string.IsNullOrWhiteSpace(raw)) continue;
+
+                // Split on tab OR comma OR runs of 2+ spaces (so "1234  2025-04-01 09:00" works)
+                var parts = System.Text.RegularExpressions.Regex
+                    .Split(raw.Trim(), @"\t|,|\s{2,}")
+                    .Where(p => !string.IsNullOrWhiteSpace(p))
+                    .ToArray();
+
+                if (parts.Length < 2)
+                {
+                    rows.Add((lineNo, "", "", "Line does not contain at least 2 columns"));
+                    continue;
+                }
+
+                rows.Add((lineNo, parts[0].Trim(), parts[1].Trim(), null));
+            }
+        }
+
+        // ── Parser: XLSX (native — no NuGet needed) ──
+        private void ParseXlsx(Stream stream, List<(int line, string epf, string dateRaw, string? parseError)> rows)
+        {
+            using var zip = new System.IO.Compression.ZipArchive(stream, System.IO.Compression.ZipArchiveMode.Read);
+
+            // 1. Shared strings (optional)
+            var sharedStrings = new List<string>();
+            var ssEntry = zip.GetEntry("xl/sharedStrings.xml");
+            if (ssEntry != null)
+            {
+                using var ssReader = new StreamReader(ssEntry.Open());
+                var doc = System.Xml.Linq.XDocument.Parse(ssReader.ReadToEnd());
+                System.Xml.Linq.XNamespace ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+                sharedStrings.AddRange(doc.Descendants(ns + "si").Select(si => si.Value));
+            }
+
+            // 2. First worksheet
+            var sheetEntry = zip.GetEntry("xl/worksheets/sheet1.xml");
+            if (sheetEntry == null)
+            {
+                rows.Add((0, "", "", "No worksheet found in .xlsx file"));
+                return;
+            }
+
+            using var sReader = new StreamReader(sheetEntry.Open());
+            var sDoc = System.Xml.Linq.XDocument.Parse(sReader.ReadToEnd());
+            System.Xml.Linq.XNamespace ns2 = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+
+            int lineNo = 0;
+            foreach (var row in sDoc.Descendants(ns2 + "row"))
+            {
+                lineNo++;
+                if (lineNo == 1) continue;      // assume header row — skip
+
+                var cells = row.Descendants(ns2 + "c").ToList();
+
+                string? GetCellValue(System.Xml.Linq.XElement cell)
+                {
+                    var t = (string?)cell.Attribute("t");
+                    var vEl = cell.Element(ns2 + "v");
+                    if (vEl == null) return null;
+                    var v = vEl.Value;
+                    if (t == "s" && int.TryParse(v, out int idx) && idx < sharedStrings.Count)
+                        return sharedStrings[idx];
+                    return v;
+                }
+
+                string epfRaw = cells.Count > 0 ? (GetCellValue(cells[0]) ?? "") : "";
+
+// Normalise "21.0" / " 21 " / "021" → "21" — Excel always writes whole numbers
+// with a .0 suffix, so we must accept that form.
+string epf = epfRaw.Trim();
+if (TryExtractInt(epf, out int epfAsInt))
+    epf = epfAsInt.ToString();
+                string rawD = cells.Count > 1 ? (GetCellValue(cells[1]) ?? "").Trim() : "";
+
+                if (string.IsNullOrEmpty(epf) && string.IsNullOrEmpty(rawD)) continue;
+
+                // Excel stores dates as serial numbers — convert if the cell is numeric
+                if (!string.IsNullOrEmpty(rawD) &&
+                    double.TryParse(rawD, out double serial) &&
+                    serial > 1 && serial < 100000)
+                {
+                    // Excel serial → DateTime (1900 date system)
+                    var excelEpoch = new DateTime(1899, 12, 30);
+                    rawD = excelEpoch.AddDays(serial).ToString("yyyy-MM-dd HH:mm:ss");
+                }
+
+                if (string.IsNullOrEmpty(epf) || string.IsNullOrEmpty(rawD))
+                {
+                    rows.Add((lineNo, epf, rawD, "Row is missing EPF or DateTime column"));
+                    continue;
+                }
+
+                rows.Add((lineNo, epf, rawD, null));
+            }
+        }// ═══════════════════════════════════════════════════════════════════
+//  Extract an integer from a value that might arrive as "21",
+//  "21.0", "21.00", " 21 ", "021", "21,000", "2.1E1", "21.0E0", etc.
+//  Returns true only when the value is a *whole* number.
+// ═══════════════════════════════════════════════════════════════════
+private static bool TryExtractInt(string? raw, out int value)
+{
+    value = 0;
+    if (string.IsNullOrWhiteSpace(raw)) return false;
+
+    // Remove every whitespace and invisible formatting char
+    var cleaned = new string(raw
+        .Where(c => !char.IsWhiteSpace(c)
+                    && c != '\u00A0'    // non-breaking space
+                    && c != '\u200B'    // zero-width space
+                    && c != '\uFEFF'    // BOM
+                    && c != '\'')       // Excel's "text-prefix" apostrophe
+        .ToArray());
+
+    if (cleaned.Length == 0) return false;
+
+    // 1) Straight int?
+    if (int.TryParse(cleaned,
+            System.Globalization.NumberStyles.Integer,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out value))
+        return true;
+
+    // 2) Decimal / scientific / grouped — parse as double, then accept only if whole
+    if (decimal.TryParse(cleaned,
+            System.Globalization.NumberStyles.Float | System.Globalization.NumberStyles.AllowThousands,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out var dec))
+    {
+        if (dec == Math.Truncate(dec) &&
+            dec >= int.MinValue && dec <= int.MaxValue)
+        {
+            value = (int)dec;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+        // ── Flexible date/time parser — accepts any common format ──
+        private bool TryParseLooseDateTime(string raw, out DateTime result)
+        {
+            result = default;
+            if (string.IsNullOrWhiteSpace(raw)) return false;
+
+            // 1. Try standard .NET parsing (covers ISO, en-US, en-GB, most cases)
+            if (DateTime.TryParse(raw, System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.AllowWhiteSpaces, out result))
+                return true;
+
+            // 2. Try en-GB (dd/MM/yyyy)
+            if (DateTime.TryParse(raw, new System.Globalization.CultureInfo("en-GB"),
+                System.Globalization.DateTimeStyles.AllowWhiteSpaces, out result))
+                return true;
+
+            // 3. Try en-US (MM/dd/yyyy)
+            if (DateTime.TryParse(raw, new System.Globalization.CultureInfo("en-US"),
+                System.Globalization.DateTimeStyles.AllowWhiteSpaces, out result))
+                return true;
+
+            // 4. Try common explicit patterns
+            string[] patterns = {
+        "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd HH:mm", "yyyy-MM-dd",
+        "dd/MM/yyyy HH:mm:ss", "dd/MM/yyyy HH:mm", "dd/MM/yyyy",
+        "MM/dd/yyyy HH:mm:ss", "MM/dd/yyyy HH:mm", "MM/dd/yyyy",
+        "dd-MM-yyyy HH:mm:ss", "dd-MM-yyyy HH:mm", "dd-MM-yyyy",
+        "yyyyMMdd HH:mm:ss", "yyyyMMdd HHmm", "yyyyMMdd",
+        "dd MMM yyyy HH:mm:ss", "dd MMM yyyy HH:mm", "dd MMM yyyy",
+        "MMM dd yyyy HH:mm:ss", "MMM dd yyyy HH:mm", "MMM dd yyyy"
+    };
+
+            if (DateTime.TryParseExact(raw, patterns,
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None, out result))
+                return true;
+
+            return false;
+        }
+
+       [HttpGet("upload-logs")]
+public async Task<IActionResult> GetUploadLogs(
+    [FromQuery] int companyId,
+    [FromQuery] string? fromDate,
+    [FromQuery] string? toDate,
+    [FromQuery] int tzOffsetMinutes = 0,          // ← client's UTC offset in minutes
+    [FromQuery] int pageSize = 200)
+{
+    // Parse the client's LOCAL calendar dates
+    DateTime fromLocal = DateTime.TryParse(fromDate, out var f) ? f.Date : DateTime.Today.AddDays(-30);
+    DateTime toLocal   = DateTime.TryParse(toDate,   out var t) ? t.Date : DateTime.Today.AddDays(1);
+
+    // Convert local [from 00:00, to 23:59:59] to UTC using the client's offset
+    // If the client is UTC+05:30, offset = +330. Local = UTC + offset → UTC = Local - offset.
+    DateTime fromUtc = fromLocal.AddMinutes(-tzOffsetMinutes);
+    DateTime toUtc   = toLocal.AddDays(1).AddSeconds(-1).AddMinutes(-tzOffsetMinutes);
+
+    using var conn = new SqlConnection(_connectionString);
+
+    var rows = await conn.QueryAsync<AttendanceUploadLogDto>(@"
+        SELECT TOP (@PageSize)
+            Id, FileName, FileType, TotalRows, InsertedRows, SkippedRows, ErrorRows,
+            Status, UploadedAt, UploadedBy, UploadIp,
+            CASE WHEN StoredFilePath IS NOT NULL AND Status <> 'Deleted'
+                 THEN 1 ELSE 0 END AS HasFile
+        FROM AttendanceUploadLog
+        WHERE CompanyId = @CompanyId
+          AND UploadedAt >= @FromUtc
+          AND UploadedAt <= @ToUtc
+        ORDER BY UploadedAt DESC",
+        new { CompanyId = companyId, FromUtc = fromUtc, ToUtc = toUtc, PageSize = pageSize });
+
+    return Ok(new { success = true, data = rows });
+}
+       // ── DELETE /api/attendance/upload-logs/{id} — rollback a batch ──
+[HttpDelete("upload-logs/{id}")]
+public async Task<IActionResult> DeleteUploadLog(int id)
+{
+    try
+    {
+        using var conn = new SqlConnection(_connectionString);
+
+        // 1) Confirm the log exists and is not already deleted
+        var log = await conn.QueryFirstOrDefaultAsync<dynamic>(
+            "SELECT * FROM AttendanceUploadLog WHERE Id = @id", new { id });
+        if (log == null)
+            return NotFound(new { success = false, message = "Upload log not found" });
+
+        if (((string?)log.Status) == "Deleted")
+            return BadRequest(new { success = false, message = "This upload was already deleted" });
+
+        string tag = $"upload-{id}";
+
+        // 2) Find every distinct (year, month) touched by this batch's attendance rows
+        //    The row's month is the one that will be re-processed — so that's the one
+        //    we must verify isn't locked.
+        const string affectedSql = @"
+            SELECT DISTINCT YEAR(datetime) AS Yr, MONTH(datetime) AS Mn
+            FROM Attendance
+            WHERE input_type = @t";
+
+        var affected = (await conn.QueryAsync<dynamic>(affectedSql, new { t = tag })).ToList();
+
+        // 3) For each affected period, check Payroll_Process.locked
+        const string lockSql = @"
+            SELECT TOP 1 [locked] AS Locked
+            FROM Payroll_Process
+            WHERE company_id = @CompanyId
+              AND year       = @Year
+              AND month      = @Month";
+
+        var lockedPeriods = new List<string>();
+
+        foreach (var row in affected)
+        {
+            int year  = (int)row.Yr;
+            int month = (int)row.Mn;
+            string monthName = GetMonthNameFromNumber(month);
+
+            var lockedRow = await conn.QueryFirstOrDefaultAsync<dynamic>(
+                lockSql, new { CompanyId = (int)log.CompanyId, Year = year, Month = monthName });
+
+            bool isLocked = lockedRow != null && (bool)(lockedRow.Locked ?? false);
+            if (isLocked)
+                lockedPeriods.Add($"{monthName} {year}");
+        }
+
+        // 4) If ANY period is locked, refuse the entire delete
+        if (lockedPeriods.Count > 0)
+        {
+            _logger.LogWarning(
+                "Delete blocked for upload #{LogId} — locked periods: {Periods}",
+                id, string.Join(", ", lockedPeriods));
+
+            return BadRequest(new
+            {
+                success       = false,
+                reason        = "locked_periods",
+                message       = $"Cannot delete this upload. The following payroll period(s) are locked: {string.Join(", ", lockedPeriods)}. Unlock them first.",
+                lockedPeriods = lockedPeriods
+            });
+        }
+
+        // 5) Safe — delete all attendance rows for this batch
+        var deleted = await conn.ExecuteAsync(
+            "DELETE FROM Attendance WHERE input_type = @t", new { t = tag });
+
+        // 6) Mark the log as deleted (keeps an audit trail)
+        await conn.ExecuteAsync(@"
+            UPDATE AttendanceUploadLog
+            SET Status = 'Deleted',
+                Remarks = CONCAT(ISNULL(Remarks,''),
+                                 ' | Rolled back at ',
+                                 FORMAT(GETDATE(),'yyyy-MM-dd HH:mm:ss'))
+            WHERE Id = @id", new { id });
+
+        return Ok(new
+        {
+            success = true,
+            message = $"Deleted {deleted} attendance rows from upload #{id}"
+        });
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "DeleteUploadLog failed");
+        return StatusCode(500, new { success = false, message = ex.Message });
+    }
+}
         // ============================================================
         // TOGGLE Night Date
         // ============================================================
@@ -4381,7 +5140,7 @@ public async Task<IActionResult> GetWorkingDays(
                 _logger.LogError(ex, "Error logging attendance action to AttendanceManualLog");
             }
         }
-                // ===== Validation Helper: Weekly Day Off / Half Day Off =====
+        // ===== Validation Helper: Weekly Day Off / Half Day Off =====
         private (bool IsValid, string? ErrorMessage) ValidateGeneralSettings(ShiftBlock shiftBlock)
         {
             if (!string.IsNullOrWhiteSpace(shiftBlock.FirstWeeklyDayOffDay) &&
@@ -4401,7 +5160,7 @@ public async Task<IActionResult> GetWorkingDays(
             }
 
             return (true, null);
-        }  
+        }
         private async Task TriggerProcessQueue(int employeeId, string periodKey, string ipAddress = "Unknown")
         {
             try
