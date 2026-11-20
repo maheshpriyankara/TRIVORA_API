@@ -1,0 +1,149 @@
+// Controllers/EmployeesController.cs
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using TRIVORA_API.Data;
+using TRIVORA_API.Models;
+
+
+namespace TRIVORA_API.Controllers
+{
+    [ApiController]
+    [Route("api/[controller]")]
+    public class PayrollController : ControllerBase
+    {
+        private readonly IConfiguration _configuration;
+        private readonly ILogger<PayrollController> _logger;
+
+        public PayrollController(IConfiguration configuration, ILogger<PayrollController> logger)
+        {
+            _configuration = configuration;
+            _logger = logger;
+        }
+
+        // GET: api/payroll/test
+        [HttpGet("test")]
+        public IActionResult Test()
+        {
+            return Ok(new { 
+                message = "Payroll controller is working!", 
+                timestamp = DateTime.Now,
+                status = "OK"
+            });
+        }
+
+        // GET: api/payroll/periods/unlocked
+        [HttpGet("periods/unlocked")]
+        public async Task<ActionResult> GetUnlockedPeriods()
+        {
+            try
+            {
+                var connectionString = _configuration.GetConnectionString("DefaultConnection");
+                
+                using var connection = new SqlConnection(connectionString);
+                
+                const string sql = @"
+                    SELECT 
+                        id AS Id,
+                        company_id AS CompanyId,
+                        year AS Year,
+                        month AS Month,
+                        payrollStartDate AS PayrollStartDate,
+                        processing AS Processing,
+                        locked AS Locked
+                    FROM Payroll_Process 
+                    WHERE locked = 0 
+                    ORDER BY payrollStartDate";
+
+                var periods = await connection.QueryAsync<PayrollPeriodDto>(sql);
+                
+                return Ok(new ApiResponse<List<PayrollPeriodDto>>
+                {
+                    Success = true,
+                    Message = $"Found {periods.Count()} unlocked periods",
+                    Data = periods.ToList()
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching unlocked payroll periods");
+                return StatusCode(500, new ApiResponse<List<PayrollPeriodDto>>
+                {
+                    Success = false,
+                    Message = "Internal server error while fetching payroll periods"
+                });
+            }
+        }
+
+        // GET: api/payroll/periods/{id}
+        [HttpGet("periods/{id}")]
+        public async Task<ActionResult> GetPeriodById(int id)
+        {
+            try
+            {
+                var connectionString = _configuration.GetConnectionString("DefaultConnection");
+                
+                using var connection = new SqlConnection(connectionString);
+                
+                const string sql = @"
+                    SELECT 
+                        id AS Id,
+                        company_id AS CompanyId,
+                        year AS Year,
+                        month AS Month,
+                        payrollStartDate AS PayrollStartDate,
+                        processing AS Processing,
+                        locked AS Locked
+                    FROM Payroll_Process 
+                    WHERE id = @Id";
+
+                var period = await connection.QueryFirstOrDefaultAsync<PayrollPeriodDto>(sql, new { Id = id });
+                
+                if (period == null || period.Id == 0)
+                {
+                    return NotFound(new ApiResponse<PayrollPeriodDto>
+                    {
+                        Success = false,
+                        Message = "Payroll period not found"
+                    });
+                }
+
+                return Ok(new ApiResponse<PayrollPeriodDto>
+                {
+                    Success = true,
+                    Message = "Payroll period retrieved successfully",
+                    Data = period
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching payroll period with ID: {Id}", id);
+                return StatusCode(500, new ApiResponse<PayrollPeriodDto>
+                {
+                    Success = false,
+                    Message = "Internal server error"
+                });
+            }
+        }
+
+        // GET: api/payroll (Main endpoint)
+        [HttpGet]
+        public IActionResult Get()
+        {
+            return Ok(new 
+            {
+                message = "Payroll API is running",
+                endpoints = new[]
+                {
+                    "GET    /api/payroll",
+                    "GET    /api/payroll/test", 
+                    "GET    /api/payroll/periods/unlocked",
+                    "GET    /api/payroll/periods/{id}"
+                },
+                timestamp = DateTime.Now
+            });
+        }
+    }
+}
